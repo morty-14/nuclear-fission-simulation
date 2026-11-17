@@ -1,0 +1,5206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>3D Neutron Collision & Nuclear Fission Simulation</title>
+
+     <!-- Standard favicons -->
+    <link rel="icon" type="image/png" sizes="16x16" href="images/favicon/favicon-16x16.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="images/favicon/favicon-32x32.png">
+    <link rel="shortcut icon" href="images/favicon/favicon.ico" type="image/x-icon">
+
+    <!-- Apple Touch Icon for iOS -->
+    <link rel="apple-touch-icon" sizes="180x180" href="images/favicon/apple-touch-icon.png">
+
+    <!-- Android/Chrome -->
+    <link rel="icon" type="image/png" sizes="192x192" href="images/favicon/android-chrome-192x192.png">
+    <link rel="icon" type="image/png" sizes="512x512" href="images/favicon/android-chrome-512x512.png">
+    <link rel="manifest" href="images/favicon/site.webmanifest">
+    <style>
+        :root {
+            --header-height: 70px;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: Arial, sans-serif;
+            background: #ffffff;
+            overflow-x: hidden;
+            color: #2d5016;
+            cursor: default;
+        }
+
+        /* Cursor states */
+        body.dragging, body.dragging * {
+            cursor: grabbing !important;
+        }
+
+        /* Header */
+        .site-header {
+            height: var(--header-height);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #45825D;
+            border-bottom: 1px solid #66C18E;
+            backdrop-filter: blur(6px);
+            position: relative;
+            z-index: 20;
+            padding: 0 20px;
+        }
+        .header-inner {
+            width: 100%;
+            max-width: 1400px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        .logo-placeholder {
+        width: 300px;
+        height: calc(var(--header-height) - 16px);
+        min-width: 250px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 16px;
+        flex-shrink: 0;
+    }
+    .logo-placeholder img {
+        max-width: 140px;
+        max-height: 120%;
+        object-fit: contain;
+        flex: 0 0 auto;
+    }
+        .simulation-title {
+            flex: 1;
+            text-align: center;
+            font-size: 18px;
+            color: #ffffff;
+            font-weight: 700;
+            letter-spacing: 0.4px;
+        }
+        .header-right { width: 140px; min-width: 120px; }
+
+        /* New wrapper for white background */
+        .page-wrapper {
+            background: #ffffff;
+            min-height: calc(100vh - var(--header-height));
+            padding: 20px;
+        }
+
+        /* Main Layout */
+        .main-container {
+            display: flex;
+            max-width: 1400px;
+            margin: 0 auto;
+            gap: 20px;
+            min-height: calc(100vh - var(--header-height) - 40px);
+        }
+
+        /* Left Container - 3D Scene */
+        .scene-container {
+            flex: 0 0 68%;
+            position: relative;
+            overflow: hidden;
+            height: calc(100vh - var(--header-height) - 40px);
+            background: radial-gradient(ellipse at center, #0a0a1a 0%, #000000 100%);
+            border-radius: 12px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+        }
+
+        /* Canvas fills the scene container */
+        #canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        .stars {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            top: 0; left: 0;
+        }
+        .star {
+            position: absolute;
+            width: 2px; height: 2px;
+            background: white; border-radius: 50%;
+            opacity: 0.8; animation: twinkle 3s infinite;
+        }
+        @keyframes twinkle { 0%,100% { opacity:0.3 } 50% { opacity:1 } }
+
+        /* Info Box - Top Left */
+        #info {
+            position: absolute;
+            top: 20px; left: 20px;
+            color: #66C18E; font-size: 13px;
+            text-shadow: 0 0 10px rgba(0,255,255,0.5);
+            z-index: 10;
+            background: rgba(10,10,26,0.85);
+            border: 1px solid #66C18E;
+            border-radius: 10px; padding: 15px 18px;
+            backdrop-filter: blur(10px);
+            max-width: 220px;
+        }
+        #info h2 { margin: 0 0 12px 0; font-size: 18px; }
+        #info p { margin: 5px 0; }
+
+        /* Add element buttons inside simulation container */
+        .add-elements {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            z-index: 11;
+        }
+        .add-btn {
+            background: rgba(255,255,255,0.95);
+            color: #1A231C;
+            padding: 8px 12px;
+            border-radius: 8px;
+            border: 2px solid #7ec97e;
+            font-weight: 700;
+            cursor: pointer;
+            min-width: 140px;
+            text-align: center;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.12);
+        }
+        .add-btn:hover { background: #f0fff2; }
+        .add-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            background: #d9f1d9;
+            color: #6a6a6a;
+        }
+
+        /* Bottom Right Buttons */
+        .bottom-controls {
+            position: absolute; bottom: 20px; right: 20px;
+            display: flex; gap: 10px; z-index: 10;
+        }
+        .floating-btn {
+            background: rgba(10,10,26,0.8);
+            border: 1px solid rgba(0,255,255,0.5);
+            color: #66C18E; padding: 12px 20px; border-radius: 8px;
+            cursor: pointer; font-size: 14px; backdrop-filter: blur(10px);
+            transition: all 0.3s ease; text-shadow: 0 0 10px rgba(0,255,255,0.5);
+        }
+        .floating-btn:hover {
+            background: rgba(0,255,255,0.2); border-color: #00ffff;
+            box-shadow: 0 0 20px rgba(0,255,255,0.4);
+        }
+
+        /* Legend Panel */
+        .legend-container {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            z-index: 12;
+        }
+
+        .legend-toggle {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: rgba(10, 10, 26, 0.85);
+            border: 2px solid #66C18E;
+            color: #66C18E;
+            font-size: 24px;
+            font-weight: 700;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        .legend-toggle:hover {
+            background: rgba(0, 255, 255, 0.2);
+            border-color: #00ffff;
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.4);
+            transform: scale(1.05);
+        }
+
+        .legend-icon {
+            text-shadow: 0 0 10px #66C18E;
+        }
+
+        .legend-panel {
+            position: absolute;
+            bottom: 60px;
+            left: 0;
+            width: 320px;
+            max-height: 450px;
+            background: rgba(10, 10, 26, 0.92);
+            border: 1px solid rgba(0, 255, 255, 0.4);
+            border-radius: 12px;
+            backdrop-filter: blur(12px);
+            overflow-y: auto;
+            opacity: 0;
+            transform: translateY(10px);
+            pointer-events: none;
+            transition: all 0.3s ease;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+        }
+
+        .legend-panel.active {
+            opacity: 1;
+            transform: translateY(0);
+            pointer-events: auto;
+        }
+
+        .legend-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid rgba(0, 255, 255, 0.3);
+            background: rgba(0, 255, 255, 0.05);
+        }
+
+        .legend-header h3 {
+            margin: 0;
+            font-size: 18px;
+            color: #66C18E;
+            text-shadow: 0 0 10px rgba(0, 255, 255, 0.3);
+            font-weight: 700;
+        }
+
+        .legend-content {
+            padding: 16px 20px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            margin-bottom: 16px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid rgba(0, 255, 255, 0.15);
+        }
+
+        .legend-item:last-child {
+            margin-bottom: 0;
+            padding-bottom: 0;
+            border-bottom: none;
+        }
+
+        .legend-symbol {
+            font-size: 24px;
+            flex-shrink: 0;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.3));
+        }
+
+        .legend-text {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .legend-text strong {
+            display: block;
+            font-size: 14px;
+            color: #66C18E;
+            font-weight: 700;
+            text-align: center;
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            .legend-container {
+                bottom: 80px;
+                left: 10px;
+            }
+
+            .legend-toggle {
+                width: 42px;
+                height: 42px;
+                font-size: 20px;
+            }
+
+            .legend-panel {
+                width: 280px;
+                max-height: 350px;
+                bottom: 54px;
+            }
+
+            .legend-header {
+                padding: 12px 16px;
+            }
+
+            .legend-header h3 {
+                font-size: 16px;
+            }
+
+            .legend-content {
+                padding: 12px 16px;
+            }
+
+            .legend-item {
+                gap: 10px;
+                margin-bottom: 12px;
+                padding-bottom: 12px;
+            }
+
+            .legend-symbol {
+                font-size: 20px;
+                width: 28px;
+                height: 28px;
+            }
+
+            .legend-text strong {
+                font-size: 13px;
+            }
+
+            .legend-text p {
+                font-size: 11px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .legend-panel {
+                width: calc(100vw - 40px);
+                max-width: 280px;
+            }
+        }
+
+        /* Right Container - Control Panel */
+        .controls-container {
+            flex: 0 0 32%;
+            min-width: 320px;
+            background: #ffffff;
+            border: 1px solid #e0e0e0;
+            border-radius: 12px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+            overflow-y: auto;
+            height: calc(100vh - var(--header-height) - 40px);
+        }
+        .control-panel {
+            margin: 20px;
+            background: rgba(255,255,255,0.98); border: 2px solid #90EE90;
+            border-radius: 10px; padding: 20px; color: #2d5016; backdrop-filter: blur(10px);
+        }
+        .control-panel h3 {
+            margin: 0 0 16px 0; font-size: 20px; text-align: center;
+            border-bottom: 2px solid #90EE90; padding-bottom: 12px; color: #2d5016;
+        }
+        .control-section { margin-bottom: 16px; }
+        .control-section h4 {
+            margin: 0 0 10px 0; font-size: 13px; color: #45825D;
+            text-transform: uppercase; letter-spacing: 1px; font-weight: bold;
+        }
+        .control-btn {
+            width: 100%; background: #66C18E; border: 2px solid #7ec97e;
+            color: #1a3d0a; padding: 12px; border-radius: 8px; cursor: pointer;
+            font-size: 14px; font-weight: 700; margin-bottom: 10px;
+            transition: all 0.22s ease;
+        }
+        
+        .control-btn:hover { background: #45825D; border-color: #4a9a4a; box-shadow: 0 0 16px rgba(144,238,144,0.45); }
+        .control-btn:active { transform: translateY(1px); }
+
+        .control-btn[disabled] {
+            opacity: 0.5;
+            cursor: not-allowed;
+            box-shadow: none;
+            background: #d9f1d9;
+            color: #6a6a6a;
+            border-color: #c7e7c7;
+        }
+
+        .btn-group { display: flex; gap: 10px; }
+        .btn-group .control-btn { flex: 1; padding-left: 10px; padding-right: 10px; }
+
+        /* Readiness checklist */
+        .checklist {
+            list-style: none;
+            padding-left: 0;
+            margin: 6px 0 0 0;
+            color: #45825D;
+        }
+        .checklist li {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 5px 0;
+            font-weight: 700;
+            font-size: 12px;
+        }
+        .checkmark {
+            width: 18px; height: 18px; display: inline-flex;
+            align-items: center; justify-content: center;
+            border-radius: 4px;
+            background: rgba(0,0,0,0.04);
+            color: #c43b3b;
+            font-size: 11px;
+        }
+        .checkmark.checked {
+            background: #66C18E;
+            color: #062b06;
+        }
+
+        /* Compact speed selector */
+        .speed-line { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 6px; margin-top: 6px; }
+        .speed-line::before { content: ""; position: absolute; left: 16px; right: 16px; height: 4px; top: 50%; transform: translateY(-50%); background: linear-gradient(90deg, rgba(0,0,0,0.06), rgba(0,255,255,0.06)); border-radius: 2px; z-index: 1; }
+        .speed-point { position: relative; z-index: 2; width: 34px; height: 34px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: #ffffff; border: 2px solid #7ec97e; color: #1A231C; font-weight: 700; cursor: pointer; transition: all 0.18s ease; box-shadow: 0 1px 0 rgba(0,0,0,0.06); font-size: 11px; }
+        .speed-point.active { width: 42px; height: 42px; background: #66C18E; color: #062b06; border-color: #4a9a4a; box-shadow: 0 6px 18px rgba(144,238,144,0.28); transform: translateY(-4px); }
+
+        /* overlay to capture clicks on disabled start */
+        .start-wrap {
+            position: relative;
+            display: block;
+        }
+        .start-overlay {
+            position: absolute;
+            inset: 0;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: transparent;
+            display: none;
+            cursor: not-allowed;
+        }
+        .start-overlay.active {
+            display: block;
+        }
+
+        /* Hover tooltip for nucleons/electrons/free neutrons/fission products */
+        .hover-tooltip {
+            position: fixed;
+            background: #45825D;
+            color: #ffffff;
+            padding: 8px 10px;
+            border-radius: 6px;
+            font-size: 13px;
+            pointer-events: none;
+            z-index: 10000;
+            transform: translate(-50%, -140%);
+            white-space: nowrap;
+            opacity: 0;
+            transition: opacity 0.08s ease, transform 0.08s ease;
+        }
+        .hover-tooltip.show {
+            opacity: 1;
+            transform: translate(-50%, -160%);
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 1024px) {
+            .main-container { flex-direction: column; }
+            .scene-container { flex: 0 0 auto; height: 60vh; }
+            .controls-container { flex: 1; min-width: 0; border-left: none; border-top: 1px solid rgba(0,255,255,0.12); height: auto; }
+            #canvas { height: 100%; }
+            .control-panel { margin: 12px; padding: 16px; }
+        }
+        @media (max-width: 768px) {
+            .scene-container { height: 50vh; }
+            :root { --header-height: 56px; }
+            .logo-placeholder { width: 137px; min-width: 130px; font-size: 12px; }
+            .simulation-title { font-size: 15px; }
+            .controls-container { min-width: 0; }
+            .speed-line::before { left: 12px; right: 12px; }
+            .add-btn { min-width: 110px; padding: 6px 8px; }
+        }
+
+        #soundToggle {
+            position: relative;
+            font-size: 20px;
+            border-color: #66C18E;
+        }
+
+        #soundToggle.muted::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 2px;
+            height: 140%;
+            background: #ff4444;
+            transform: translate(-50%, -50%) rotate(45deg);
+            pointer-events: none;
+        }
+
+        /* Info Card Overlay */
+        .info-card-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.75);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+            padding: 20px;
+            opacity: 1;
+            transition: opacity 0.3s ease;
+        }
+
+        .info-card-overlay.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .info-card-container {
+            background: rgba(255, 255, 255, 0.98);
+            border: 2px solid #66C18E;
+            border-radius: 16px;
+            max-width: 700px;
+            width: 100%;
+            max-height: 85vh;
+            overflow-y: auto;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            position: relative;
+        }
+
+        .info-card-page {
+            padding: 32px;
+        }
+
+        .info-card-header {
+            text-align: center;
+            margin-bottom: 24px;
+            border-bottom: 2px solid #90EE90;
+            padding-bottom: 16px;
+        }
+
+        .info-card-header h2 {
+            margin: 0 0 8px 0;
+            font-size: 26px;
+            color: #2d5016;
+            font-weight: 700;
+        }
+
+        .info-card-subtitle {
+            font-size: 15px;
+            color: #45825D;
+            font-weight: 600;
+        }
+
+        .info-card-body {
+            margin-bottom: 24px;
+        }
+
+        .info-section {
+            margin-bottom: 20px;
+        }
+
+        .info-section h3 {
+            margin: 0 0 10px 0;
+            font-size: 18px;
+            color: #45825D;
+            font-weight: 700;
+        }
+
+        .info-section p {
+            margin: 8px 0;
+            font-size: 14px;
+            line-height: 1.6;
+            color: #333;
+        }
+
+        .info-section ul,
+        .info-section ol {
+            margin: 8px 0;
+            padding-left: 24px;
+        }
+
+        .info-section li {
+            margin: 6px 0;
+            font-size: 14px;
+            line-height: 1.6;
+            color: #333;
+        }
+
+        .info-card-footer {
+            text-align: center;
+            padding-top: 16px;
+            border-top: 1px solid #e0e0e0;
+        }
+
+        .page-indicator {
+            font-size: 13px;
+            color: #888;
+            font-weight: 600;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .info-card-container {
+                max-width: 95%;
+                max-height: 90vh;
+            }
+            
+            .info-card-page {
+                padding: 20px;
+            }
+            
+            .info-card-header h2 {
+                font-size: 22px;
+            }
+            
+            .info-section h3 {
+                font-size: 16px;
+            }
+        }
+
+        .info-card-nav {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+        }
+
+        .info-nav-btn {
+            background: #66C18E;
+            border: 2px solid #7ec97e;
+            color: #1a3d0a;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 700;
+            transition: all 0.22s ease;
+            white-space: nowrap;
+        }
+
+        .info-nav-btn:hover:not(:disabled) {
+            background: #45825D;
+            border-color: #4a9a4a;
+            box-shadow: 0 0 16px rgba(144, 238, 144, 0.45);
+            transform: translateY(-1px);
+        }
+
+        .info-nav-btn:active:not(:disabled) {
+            transform: translateY(0);
+        }
+
+        .info-nav-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            background: #d9f1d9;
+            color: #6a6a6a;
+            border-color: #c7e7c7;
+        }
+
+        .info-nav-close {
+            background: #66C18E;
+            border: 2px solid #7ec97e;
+            padding: 12px 32px;
+            font-size: 15px;
+        }
+
+        .info-nav-close:hover {
+            background: #66C18E;
+            border-color: #45825D;
+            box-shadow: 0 0 20px rgba(69, 130, 93, 0.6);
+        }
+
+        .info-hint {
+            background: rgba(255, 223, 0, 0.08);
+            border: 1px solid rgba(255, 193, 7, 0.3);
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin-top: 20px;
+            font-size: 13px;
+            color: #666;
+            line-height: 1.5;
+        }
+
+        .info-hint strong {
+            color: #45825D;
+        }
+
+        /* Page transition animation */
+        .info-card-page {
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Responsive navigation */
+        @media (max-width: 768px) {
+            .info-card-nav {
+                flex-direction: column;
+                gap: 12px;
+            }
+
+            .info-nav-btn {
+                width: 100%;
+                padding: 14px 20px;
+            }
+
+            .page-indicator {
+                order: -1;
+                margin-bottom: 8px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .info-nav-btn {
+                font-size: 13px;
+                padding: 12px 16px;
+            }
+        }
+
+        /* Learn More Panel */
+        .learn-more-container {
+            position: absolute;
+            bottom: 20px;
+            left: 80px;
+            z-index: 12;
+        }
+
+        .learn-more-toggle {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: rgba(10,10,26,0.85);
+            border: 2px solid #66C18E;
+            color: #66C18E;
+            font-size: 24px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+
+        .learn-more-toggle:hover {
+            background: rgba(0, 255, 255, 0.2);
+            border-color: #00ffff;
+            box-shadow: 0 0 20px rgba(255, 255, 0, 0.4);
+            transform: scale(1.05);
+        }
+
+        .learn-more-icon {
+            text-shadow: 0 0 10px rgba(255, 255, 0, 0.5);
+        }
+
+        .learn-more-panel {
+            position: absolute;
+            bottom: 60px;
+            left: 0;
+            width: 340px;
+            max-height: 420px;
+            background: rgba(10,10,26,0.92);
+            border: 1px solid #66C18E;
+            border-radius: 12px;
+            backdrop-filter: blur(12px);
+            overflow-y: auto;
+            opacity: 0;
+            transform: translateY(10px);
+            pointer-events: none;
+            transition: all 0.3s ease;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+        }
+
+        .learn-more-panel.active {
+            opacity: 1;
+            transform: translateY(0);
+            pointer-events: auto;
+        }
+
+        .learn-more-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid rgba(129, 211, 133, 0.3);
+        }
+
+        .learn-more-header h3 {
+            margin: 0;
+            font-size: 18px;
+            color: #66C18E;
+            font-weight: 700;
+        }
+
+        .learn-more-content {
+            padding: 16px 20px;
+            font-size: 14px;
+            color: #fff;
+        }
+
+        .learn-more-footer {
+            padding: 12px 20px;
+            text-align: right;
+        }
+
+        .learn-more-nav-btn {
+            background: #66C18E;
+            border: 2px solid #66C18E;
+            color: #333;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 700;
+            transition: all 0.2s ease;
+        }
+
+        .learn-more-nav-btn:hover {
+            background: #45825D;
+        }
+
+        /* Responsive adjustments, similar to legend */
+        @media (max-width: 768px) {
+            .learn-more-container { bottom: 80px; left: 60px; }
+            .learn-more-toggle { width: 42px; height: 42px; font-size: 20px; }
+            .learn-more-panel { width: 280px; max-height: 350px; bottom: 54px; }
+            .learn-more-header { padding: 12px 16px; }
+            .learn-more-header h3 { font-size: 16px; }
+            .learn-more-content { padding: 12px 16px; font-size: 13px; }
+        }
+
+        /* Reaction Zone Styles */
+        .reaction-zones-section {
+            background: rgba(102, 193, 142, 0.05);
+            border: 1px solid rgba(102, 193, 142, 0.2);
+            border-radius: 8px;
+            padding: 10px;
+            margin-top: 10px;
+            max-height: 280px;
+            overflow-y: auto;
+        }
+
+        .zone-item {
+            background: white;
+            border: 2px solid #90EE90;
+            border-radius: 6px;
+            padding: 8px;
+            margin-bottom: 8px;
+        }
+
+        .zone-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .zone-header {
+            font-weight: 700;
+            color: #45825D;
+            margin-bottom: 5px;
+            font-size: 12px;
+        }
+
+        .zone-assignment {
+            font-size: 11px;
+            color: #666;
+            margin: 2px 0;
+        }
+
+        .zone-status {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: 700;
+            margin-left: 5px;
+        }
+
+        .zone-status.ready {
+            background: #66C18E;
+            color: #062b06;
+        }
+
+        .zone-status.empty {
+            background: #e0e0e0;
+            color: #666;
+        }
+
+        .zone-status.incomplete {
+            background: #ffcc66;
+            color: #664400;
+        }
+
+        .zone-status.reacting {
+            background: #ff6b6b;
+            color: white;
+        }
+
+        /* Stage indicator labels */
+        .stage-label {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(10, 10, 26, 0.75);
+            border: 3px solid #66C18E;
+            color: #66C18E;
+            padding: 24px 40px;
+            border-radius: 16px;
+            font-size: 28px;
+            font-weight: 700;
+            pointer-events: none;
+            z-index: 15;
+            white-space: nowrap;
+            opacity: 0;
+            transition: opacity 0.25s ease, transform 0.25s ease;
+            text-align: center;
+            text-shadow: 0 0 20px rgba(102, 193, 142, 0.8);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(12px);
+            letter-spacing: 1px;
+        }
+        
+        .stage-label.show {
+            opacity: 1;
+        }
+        
+        .stage-label.stage-approaching {
+            border-color: #ffdf00;
+            color: #ffdf00;
+            text-shadow: 0 0 20px rgba(255, 223, 0, 0.9);
+            background: rgba(255, 223, 0, 0.12);
+        }
+        
+        .stage-label.stage-collision {
+            border-color: #ff9500;
+            color: #ff9500;
+            text-shadow: 0 0 20px rgba(255, 149, 0, 0.9);
+            background: rgba(255, 149, 0, 0.12);
+        }
+        
+        .stage-label.stage-fission {
+            border-color: #ff6b6b;
+            color: #ff6b6b;
+            text-shadow: 0 0 20px rgba(255, 107, 107, 0.9);
+            background: rgba(255, 107, 107, 0.12);
+        }
+        
+        .stage-label.stage-energy {
+            border-color: #ff3333;
+            color: #ff3333;
+            text-shadow: 0 0 20px rgba(255, 51, 51, 0.9);
+            background: rgba(255, 51, 51, 0.12);
+            transition: opacity 0.2s ease, transform 0.2s ease;
+        }
+        
+        .stage-label.stage-products {
+            border-color: #66ccff;
+            color: #66ccff;
+            text-shadow: 0 0 20px rgba(102, 204, 255, 0.9);
+            background: rgba(102, 204, 255, 0.12);
+            transition: opacity 0.3s ease, transform 0.3s ease;
+        }
+
+        /* Completion stage label */
+        .stage-label.stage-complete {
+            border-color: #66C18E;
+            color: #66C18E;
+            text-shadow: 0 0 20px rgba(102, 193, 142, 0.9);
+            background: rgba(102, 193, 142, 0.12);
+            font-size: 24px;
+            padding: 20px 32px;
+            white-space: normal;
+            max-width: 80%;
+            line-height: 1.4;
+        }
+
+        .stage-label.stage-complete .completion-subtitle {
+            display: block;
+            font-size: 16px;
+            margin-top: 8px;
+            opacity: 0.9;
+            font-weight: 600;
+            color: #ffffff;
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+        }
+
+        @media (max-width: 768px) {
+            .stage-label.stage-complete {
+                font-size: 18px;
+                padding: 16px 24px;
+            }
+
+            .stage-label.stage-complete .completion-subtitle {
+                font-size: 14px;
+                margin-top: 6px;
+            }
+        }
+        
+        /* Responsive sizing for stage labels */
+        @media (max-width: 768px) {
+            .stage-label {
+                font-size: 20px;
+                padding: 18px 30px;
+            }
+            
+            #internalStageLabel {
+                font-size: 18px;
+                padding: 16px 28px;
+                bottom: 15%;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .stage-label {
+                font-size: 16px;
+                padding: 14px 24px;
+            }
+            
+            #internalStageLabel {
+                font-size: 15px;
+                padding: 12px 20px;
+                bottom: 12%;
+            }
+        }
+
+        /* Internal stage label - distinct from external */
+        #internalStageLabel {
+        border-color: #ffdf00;
+        color: #ffdf00;
+        background: rgba(255, 223, 0, 0.15);
+        text-shadow: 0 0 20px rgba(255, 223, 0, 0.9);
+        font-size: 22px;
+        padding: 20px 36px;
+        top: auto;
+        bottom: 18%;
+        transform: translate(-50%, 0);
+        }
+
+        /* Internal Reaction Modal */
+        .internal-reaction-modal {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 20;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            gap: 16px;
+            padding: 24px;
+            background: rgba(10, 10, 26, 0.92);
+            border: 2px solid #66C18E;
+            border-radius: 16px;
+            backdrop-filter: blur(12px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+            opacity: 0;
+            transition: opacity 0.3s ease, transform 0.3s ease;
+        }
+
+        .internal-reaction-modal.show {
+            display: flex;
+            animation: modalFadeIn 0.3s ease forwards;
+        }
+
+        @keyframes modalFadeIn {
+            from {
+                opacity: 0;
+                transform: translate(-50%, -45%);
+            }
+            to {
+                opacity: 1;
+                transform: translate(-50%, -50%);
+            }
+        }
+
+        .internal-reaction-modal-title {
+            color: #66C18E;
+            font-size: 18px;
+            font-weight: 700;
+            margin-bottom: 8px;
+            text-align: center;
+            text-shadow: 0 0 10px rgba(102, 193, 142, 0.5);
+        }
+
+        .internal-reaction-btn {
+            background: #66C18E;
+            border: 2px solid #7ec97e;
+            color: #1A231C;
+            padding: 14px 32px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 700;
+            transition: all 0.22s ease;
+            min-width: 240px;
+            text-align: center;
+        }
+
+        .internal-reaction-btn:hover {
+            background: #45825D;
+            border-color: #4a9a4a;
+            box-shadow: 0 0 16px rgba(144, 238, 144, 0.45);
+            transform: translateY(-1px);
+        }
+
+        .internal-reaction-btn:active {
+            transform: translateY(0);
+        }
+
+        .internal-reaction-btn.secondary {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.3);
+            color: #ffffff;
+        }
+
+        .internal-reaction-btn.secondary:hover {
+            background: rgba(255, 255, 255, 0.2);
+            border-color: rgba(255, 255, 255, 0.5);
+        }
+
+        @media (max-width: 480px) {
+            .internal-reaction-modal {
+                padding: 20px;
+                gap: 12px;
+            }
+
+            .internal-reaction-modal-title {
+                font-size: 16px;
+            }
+
+            .internal-reaction-btn {
+                font-size: 14px;
+                padding: 12px 24px;
+                min-width: 200px;
+            }
+        }
+
+        /* Onboarding Hint Message */
+        .hint-message {
+            position: absolute;
+            bottom: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(10, 10, 26, 0.92);
+            border: 2px solid #66C18E;
+            border-radius: 12px;
+            padding: 16px 24px;
+            color: #66C18E;
+            font-size: 15px;
+            font-weight: 600;
+            text-align: center;
+            z-index: 14;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.6s ease;
+            max-width: 90%;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(10px);
+        }
+
+        .hint-message.show {
+            opacity: 1;
+        }
+
+        @media (max-width: 768px) {
+            .hint-message {
+                font-size: 13px;
+                padding: 12px 20px;
+                bottom: 60px;
+            }
+        }
+        
+    </style>
+</head>
+<body>
+    <header class="site-header" role="banner" aria-label="Simulation header">
+        <div class="header-inner">
+            <div class="logo-placeholder">
+                <img src="images/edutec-logo.png" alt="Edutec Logo">
+                <img src="images/ncrst-logo(2).png" alt="NCRST Logo">
+            </div>
+            <div class="simulation-title" role="heading" aria-level="1">
+                Neutron Collision & Nuclear Fission Simulation
+            </div>
+            <div class="header-right" aria-hidden="true"></div>
+        </div>
+    </header>
+
+    <div class="page-wrapper">
+        <div class="main-container" role="main">
+            <div class="scene-container" id="sceneContainer">
+                <div class="stars" id="stars"></div>
+
+                <div id="info" aria-live="polite">
+                    <h2>Reaction Info</h2>
+                    <p>Protons: <span id="totalProtons">0</span></p>
+                    <p>Neutrons: <span id="totalNeutrons">0</span></p>
+                    <p>Electrons: <span id="totalElectrons">0</span></p>
+                </div>
+
+                <!-- Add-element buttons inside the simulation container -->
+                <div class="add-elements" id="addElements">
+                    <button id="addZoneBtn" class="add-btn">Add Reaction Zone (0/3)</button>
+                    <button id="addUraniumBtn" class="add-btn">Add Uranium (0/3)</button>
+                    <button id="addNeutronBtn" class="add-btn">Add Neutron (0/3)</button>
+                </div>
+
+                <div class="bottom-controls">
+                    <button class="floating-btn" id="soundToggle">🔊</button>
+                </div>
+
+                <!-- Legend Panel -->
+                <div class="legend-container">
+                    <button class="legend-toggle" id="legendToggle" aria-label="Toggle legend" data-tooltip="Particle Legend">
+                        <span class="legend-icon">?</span>
+                    </button>
+                    <div class="legend-panel" id="legendPanel">
+    <div class="legend-header">
+        <h3>Particle Legend</h3>
+    </div>
+    <div class="legend-content">
+        <div class="legend-item">
+            <span class="legend-symbol proton-symbol">🔴</span>
+            <div class="legend-text">
+                <strong>Proton</strong>
+            </div>
+        </div>
+        <div class="legend-item">
+            <span class="legend-symbol neutron-symbol">🔵</span>
+            <div class="legend-text">
+                <strong>Neutron</strong>
+            </div>
+        </div>
+        <div class="legend-item">
+            <span class="legend-symbol electron-symbol">🟢</span>
+            <div class="legend-text">
+                <strong>Electron</strong>
+            </div>
+        </div>
+        <div class="legend-item">
+            <span class="legend-symbol nucleus-symbol">🔴/🔵</span>
+            <div class="legend-text">
+                <strong>Uranium-235 Nucleus</strong>
+            </div>
+        </div>
+        <div class="legend-item">
+            <span class="legend-symbol free-neutron-symbol">🌐</span>
+            <div class="legend-text">
+                <strong>Free Neutron</strong>
+            </div>
+        </div>
+    </div>
+</div>
+                </div>
+
+                <!-- Learn More Panel-->
+                <div class="learn-more-container">
+                    <button class="learn-more-toggle" id="learnMoreToggle" aria-label="Toggle Learn More">
+                        <span class="learn-more-icon">💡</span>
+                    </button>
+
+                    <div class="learn-more-panel" id="learnMorePanel">
+                        <!-- Page 1 -->
+                        <div class="learn-more-page" id="learnMorePage1">
+                            <div class="learn-more-header">
+                                <h3>Learn More</h3>
+                            </div>
+                            <div class="learn-more-content">
+                                <p><strong>Full Nuclear Reaction</strong></p>
+                                <p style="font-family: monospace; margin: 6px 0;">
+                                    ¹⁰n + ²³⁵U → ²³⁶U* → ¹⁴¹Ba + ⁹²Kr + 2–3 ¹⁰n + energy</p>
+                                    <p style="font-family: monospace; margin: 6px 0;">
+                                    (Free Neutron + Uranium-235 → Barium-141 + Krypton-92 + [2 to 3] Neutrons + Energy)</p>
+                                <p><strong>Fission Products</strong></p>
+                                <p>Barium-141, Krypton-92, and free neutrons that may trigger further reactions.</p>
+                            </div>
+                            <div class="learn-more-footer">
+                                <button class="learn-more-nav-btn" id="lmNextBtn">→</button>
+                            </div>
+                        </div>
+
+                        <!-- Page 2 -->
+                        <div class="learn-more-page" id="learnMorePage2" style="display: none;">
+                            <div class="learn-more-header">
+                                <h3>Continued...</h3>
+                            </div>
+                            <div class="learn-more-content">
+                                <p><strong>Energy Released </strong></p>
+                                <p>~200 MeV per fission event, appearing as kinetic energy, heat, and radiation.</p>
+                                <br>
+                                <p><strong>Real-World Context </strong></p>
+                                <p>Controlled reactions produce electricity in nuclear reactors. Uncontrolled reactions release massive energy (nuclear weapons). This simulation is only educational.</p>
+                            </div>
+                            <div class="learn-more-footer">
+                                <button class="learn-more-nav-btn" id="lmBackBtn">←</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <canvas id="canvas" aria-label="3D simulation canvas"></canvas>
+                
+                <!-- Stage indicator label (centered) -->
+                <div id="centralStageLabel" class="stage-label"></div>
+
+                <!-- Internal Reaction Stage Label -->
+                <div id="internalStageLabel" class="stage-label" style="display: none;"></div>
+
+                <!-- Onboarding Hint Message -->
+                <div id="hintMessage" class="hint-message">
+                    💡 Hint: Drag the nucleus and free neutron into the reaction zone to start nuclear fission.
+                </div>
+
+                 <!-- Internal Reaction Modal -->
+                <div id="internalReactionModal" class="internal-reaction-modal">
+                    <h3 class="internal-reaction-modal-title">Internal Neutron Collision is Available</h3>
+                    <button id="viewInternalBtn" class="internal-reaction-btn">EXPLORE</button>
+                    <button id="skipInternalBtn" class="internal-reaction-btn secondary">SKIP</button>
+                </div>
+            </div>
+
+            <div class="controls-container">
+                <div class="control-panel" role="region" aria-label="Simulation controls">
+                    <h3>Controls</h3>
+
+                    <!-- Checklist -->
+                    <div class="control-section">
+                        <h4>Reaction Checklist</h4>
+                        <ul class="checklist">
+                            <li><span id="chkZone" class="checkmark" aria-hidden="true">❌</span>Minimum 1 reaction zone</li>
+                            <li><span id="chkPaired" class="checkmark" aria-hidden="true">❌</span>All particles paired</li>
+                        </ul>
+                    </div>
+
+                    <!-- Reaction Zones Section -->
+                    <div class="control-section">
+                        <h4>Reaction Zones</h4>
+                        <div class="reaction-zones-section" id="reactionZones">
+                            <p style="font-size: 11px; color: #888; font-style: italic; text-align: center;">No zones created yet</p>
+                        </div>
+                    </div>
+
+                    <div class="control-section">
+                        <h4></h4>
+
+                        <!-- Start button is wrapped so overlay can capture clicks when disabled -->
+                        <div class="start-wrap">
+                            <button class="control-btn" id="startBtn" disabled>START</button>
+                            <div class="start-overlay" id="startOverlay" title="Add Reaction Zones and Particles FIRST to continue."></div>
+                        </div>
+
+                        <!-- Pause and Resume: Resume is hidden initially and shown only after Pause is clicked -->
+                        <button class="control-btn" id="pauseBtn">PAUSE</button>
+                        <button class="control-btn" id="resumeBtn" style="display: none;">RESUME</button>
+
+                        <button class="control-btn" id="resetBtn">RESET</button>
+                    </div>
+
+                    <div class="control-section">
+                        <h4>Camera Zoom</h4>
+                        <div class="btn-group">
+                            <button class="control-btn" id="zoomInBtn">+</button>
+                            <button class="control-btn" id="zoomOutBtn">-</button>
+                        </div>
+                    </div>
+
+                    <div class="control-section">
+                        <h4>Playback Speed</h4>
+                        <div class="speed-line" role="radiogroup" aria-label="Playback speed">
+                            <button class="speed-point" data-speed="0.5" aria-pressed="false" title="0.5x"><span>0.5x</span></button>
+                            <button class="speed-point" data-speed="1" aria-pressed="true" title="1x"><span>1x</span></button>
+                            <button class="speed-point" data-speed="2" aria-pressed="false" title="2x"><span>2x</span></button>
+                            <button class="speed-point" data-speed="5" aria-pressed="false" title="5x"><span>5x</span></button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Info Card Overlay -->
+    <div id="infoCardOverlay" class="info-card-overlay">
+        <div class="info-card-container">
+            <!-- Page 1 -->
+            <div class="info-card-page" id="infoPage1">
+                <div class="info-card-header">
+                    <h2>Welcome to the Nuclear Fission Simulation</h2>
+                    <div class="info-card-subtitle">Understanding Uranium-235 Chain Reactions</div>
+                </div>
+                <div class="info-card-body">
+                    <div class="info-section">
+                        <h3>🔬 What is Nuclear Fission?</h3>
+                        <p>Nuclear fission is the process in which a heavy atomic nucleus splits into two smaller nuclei, releasing a large amount of energy. This simulation demonstrates the fission of Uranium-235 (U-235).</p>
+                    </div>
+                    
+                    <div class="info-section">
+                        <h3>The Uranium-235 Nucleus</h3>
+                        <p>A U-235 atom contains:</p>
+                        <ul>
+                            <li><strong style="color: #ff6b6b;">92 Protons</strong> - positive charge [+1] (red spheres)</li>
+                            <li><strong style="color: #6b9eff;">143 Neutrons</strong> - no charge [0] (blue spheres)</li>
+                            <li><strong style="color: #66C18E;">92 Electrons</strong> - negative charge [-1] (green spheres orbiting)</li>
+                        </ul>
+                    </div>
+
+                    <div class="info-section">
+                        <h3>💥 How Does Fission Take Place?</h3>
+                        <p>When a free neutron collides with a U-235 nucleus, it makes the nucleus unstable. The nucleus briefly becomes U-236, then splits into two smaller nuclei (fission products), releasing 2–3 additional neutrons and a significant amount of energy. This process is known as fission.</p>
+                    </div>
+                </div>
+                <div class="info-card-footer">
+                    <div class="info-card-nav">
+                        <button class="info-nav-btn" id="backBtn" disabled>BACK</button>
+                        <div class="page-indicator">Page 1 of 2</div>
+                        <button class="info-nav-btn" id="nextBtn">NEXT</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Page 2 -->
+            <div class="info-card-page" id="infoPage2" style="display: none;">
+                <div class="info-card-header">
+                    <h2>How to Use This Simulation</h2>
+                    <div class="info-card-subtitle">Interactive Drag & Drop</div>
+                </div>
+                <div class="info-card-body">
+                    <div class="info-section">
+                        <h3>🎮 Controls</h3>
+                        <ol>
+                            <li><strong>Add Reaction Zone -</strong> Create up to 3 reaction zones (rectangular outlines in 3D space)</li>
+                            <li><strong>Add Uranium -</strong> Add up to 3 U-235 nuclei to the simulation</li>
+                            <li><strong>Add Neutron -</strong> Add up to 3 free neutrons to trigger fission</li>
+                            <li><strong>Drag & Drop -</strong> Drag nuclei and neutrons into zones (click and drag the nucleus rotation to move)</li>
+                            <li><strong>START -</strong> Only enabled when at least one zone is ready AND all particles are paired in zones</li>
+                            <li><strong>Camera -</strong> Use zoom buttons or drag particles to rotate them</li>
+                        </ol>
+                        <div class="info-hint">
+                            💡 <strong>Tip:</strong> Each zone holds exactly one nucleus and one neutron. All particles must be assigned to zones before you can start reactions. Hover over particles to see details.
+                        </div>
+                    </div>
+
+                    <div class="info-section">
+                        <h3>🔍 Reaction Zone Rules</h3>
+                        <ul>
+                            <li><strong>Zone Outlines -</strong> Dashed rectangular boxes show each zone in 3D space</li>
+                            <li><strong>One Pair Per Zone -</strong> Each zone holds exactly one nucleus + one neutron</li>
+                            <li><strong>All Must Be Paired -</strong> No particles can be left outside zones to start</li>
+                            <li><strong>Drag to Assign -</strong> Drag particles from their spawned position into the zone outlines</li>
+                        </ul>
+                    </div>
+
+                    <div class="info-section" style="background: rgba(102, 193, 142, 0.1); padding: 12px; border-radius: 8px; border-left: 3px solid #66C18E;">
+                        <p style="margin: 0; font-size: 14px;"><strong>Real-World Application -</strong> This simulation demonstrates controlled nuclear reactions where reactors harness the energy released during the fission process to generate electricity, sterilise medical equipment, provide sources for scientific research, etc..</p>
+                    </div>
+                </div>
+                <div class="info-card-footer">
+                    <div class="info-card-nav">
+                        <button class="info-nav-btn" id="backBtn2">BACK</button>
+                        <div class="page-indicator">Page 2 of 2</div>
+                        <button class="info-nav-btn info-nav-close" id="closeBtn">START SIMULATION</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tooltip elements -->
+    <div id="hoverTooltip" class="hover-tooltip" role="status" aria-live="polite"></div>
+
+    <!-- Three.js (r128) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+/* ============================
+   SOUND MANAGER
+============================ */
+
+class SoundManager {
+    constructor() {
+    this.sounds = {};
+    this.muted = false;
+    this.lastPlayed = {};
+    this.cooldown = 50;
+    // Global approach sound (plays once for entire simulation)
+    this.globalApproachSound = null;
+    this.isApproachSoundActive = false;
+    this.hasStartedApproachSound = false; // Prevent multiple play() calls
+    // Track active collision sounds for mute/unmute
+    this.activeCollisionSounds = []; // NEW: Store references to playing after-collision sounds
+    this.preload(['before-collision', 'after-collision']);
+}
+
+    preload(names) {
+        names.forEach(name => {
+            const audio = new Audio(`sounds/${name}.mp3`);
+            audio.preload = 'auto';
+            audio.volume = 1.0;
+            this.sounds[name] = audio;
+            this.lastPlayed[name] = 0;
+        });
+    }
+
+    playSound(name) {
+        if (this.muted || !this.sounds[name]) return;
+        const now = Date.now();
+        if (now - this.lastPlayed[name] < this.cooldown) return;
+        const audio = this.sounds[name];
+        audio.currentTime = 0;
+        audio.play().catch((err) => {
+            console.warn(`Could not play sound "${name}":`, err);
+        });
+        this.lastPlayed[name] = now;
+    }
+
+    // Start approach sound (before-collision) globally - plays only once
+startApproachSound(zoneId) {
+    // GUARD: If sound already started, do nothing (prevents duplicates)
+    if (this.hasStartedApproachSound) {
+        return;
+    }
+    
+    // Mark that we've started the sound (global flag)
+    this.hasStartedApproachSound = true;
+    
+    // Create a single global audio instance
+    const audio = new Audio('sounds/before-collision.mp3');
+    audio.preload = 'auto';
+    audio.volume = 0.8;
+    audio.loop = true;
+    audio.playbackRate = 0.5; // Start slow (far distance)
+    
+    // Only play if not muted
+    if (!this.muted) {
+        audio.play().catch((err) => {
+            console.warn(`Could not start approach sound:`, err);
+        });
+    }
+    
+    this.globalApproachSound = audio;
+    this.isApproachSoundActive = true;
+    console.log(`Started global approach sound (triggered by zone ${zoneId}) - ${this.muted ? 'muted' : 'playing'}`);
+}
+    
+    // Update playback rate based on distance (closer = faster) - global sound
+    updateApproachSoundRate(zoneId, normalizedDistance) {
+        if (!this.globalApproachSound || !this.isApproachSoundActive) return;
+        
+        const audio = this.globalApproachSound;
+        // normalizedDistance: 1.0 = far, 0.0 = very close
+        // Map to playback rate: 0.5x (far) to 2.5x (very close)
+        const minRate = 0.5;
+        const maxRate = 2.5;
+        const rate = minRate + (1 - normalizedDistance) * (maxRate - minRate);
+        audio.playbackRate = Math.max(minRate, Math.min(maxRate, rate));
+        
+        // Note: playback rate updates even when muted, so sound continues at correct speed when unmuted
+    }
+    
+    // Stop global approach sound
+    stopApproachSound(zoneId) {
+        if (!this.globalApproachSound || !this.isApproachSoundActive) return;
+        
+        const audio = this.globalApproachSound;
+        audio.pause();
+        audio.currentTime = 0;
+        this.globalApproachSound = null;
+        this.isApproachSoundActive = false;
+        this.hasStartedApproachSound = false; // NEW: Reset flag so sound can restart on next simulation
+        console.log(`Stopped global approach sound (triggered by zone ${zoneId})`);
+    }
+    
+    // Pause global approach sound (for internal view)
+    pauseApproachSound(zoneId) {
+        if (!this.globalApproachSound || !this.isApproachSoundActive) return;
+        
+        const audio = this.globalApproachSound;
+        // Pause regardless of mute state (pause for internal view logic)
+        if (!audio.paused) {
+            audio.pause();
+            console.log(`Paused global approach sound (triggered by zone ${zoneId})`);
+        }
+    }
+    
+    // Resume global approach sound (after internal view)
+    resumeApproachSound(zoneId) {
+        if (!this.globalApproachSound || !this.isApproachSoundActive) return;
+        
+        // Don't resume if currently muted
+        if (this.muted) {
+            console.log(`Resume suppressed for global approach sound (muted)`);
+            return;
+        }
+        
+        const audio = this.globalApproachSound;
+        if (audio.paused) {
+            audio.play().catch((err) => {
+                console.warn(`Could not resume global approach sound:`, err);
+            });
+            console.log(`Resumed global approach sound (triggered by zone ${zoneId})`);
+        }
+    }
+    
+    // Play collision sound (after-collision) once for a zone
+    playCollisionSound(zoneId) {
+        // Stop approach sound for this zone immediately
+        this.stopApproachSound(zoneId);
+        
+        // Create collision sound instance
+        const audio = new Audio('sounds/after-collision.mp3');
+        audio.preload = 'auto';
+        audio.volume = 1.0;
+        
+        // Store reference to this sound
+        const soundRef = { audio, zoneId };
+        this.activeCollisionSounds.push(soundRef);
+        
+        // Remove from active list when sound ends naturally
+        audio.addEventListener('ended', () => {
+            const index = this.activeCollisionSounds.indexOf(soundRef);
+            if (index > -1) {
+                this.activeCollisionSounds.splice(index, 1);
+            }
+        });
+        
+        // Only play if not muted
+        if (!this.muted) {
+            audio.play().catch((err) => {
+                console.warn(`Could not play collision sound for zone ${zoneId}:`, err);
+            });
+            console.log(`Played collision sound for zone ${zoneId}`);
+        } else {
+            console.log(`Collision sound for zone ${zoneId} suppressed (muted)`);
+        }
+    }
+    
+    // Stop global approach sound (for reset)
+stopAllZoneSounds() {
+    if (this.globalApproachSound) {
+        const audio = this.globalApproachSound;
+        audio.pause();
+        audio.currentTime = 0;
+        this.globalApproachSound = null;
+        this.isApproachSoundActive = false;
+        this.hasStartedApproachSound = false; // Reset flag on simulation reset
+    }
+    
+    // NEW: Stop all active collision sounds
+    this.activeCollisionSounds.forEach(soundRef => {
+        if (soundRef.audio) {
+            soundRef.audio.pause();
+            soundRef.audio.currentTime = 0;
+        }
+    });
+    this.activeCollisionSounds = [];
+    
+    console.log('Stopped global approach sound and all collision sounds');
+}
+
+    pauseSound(name) {
+        if (!this.sounds[name]) return;
+        const audio = this.sounds[name];
+        if (!audio.paused) {
+            audio.pause();
+            console.log(`Sound "${name}" paused at ${audio.currentTime}s`);
+        }
+    }
+
+    resumeSound(name) {
+        if (!this.sounds[name]) return;
+        const audio = this.sounds[name];
+        if (audio.paused && audio.currentTime > 0) {
+            audio.play().catch((err) => {
+                console.warn(`Could not resume sound "${name}":`, err);
+            });
+            console.log(`Sound "${name}" resumed from ${audio.currentTime}s`);
+        }
+    }
+
+    toggleMute() {
+    this.muted = !this.muted;
+    
+    if (this.muted) {
+        // When muting: pause all active sounds (don't stop them)
+        if (this.globalApproachSound && !this.globalApproachSound.paused) {
+            this.globalApproachSound.pause();
+            console.log('Muted: paused global approach sound');
+        }
+        
+        // NEW: Pause all active collision sounds
+        this.activeCollisionSounds.forEach(soundRef => {
+            if (soundRef.audio && !soundRef.audio.paused && !soundRef.audio.ended) {
+                soundRef.audio.pause();
+                console.log(`Muted: paused collision sound for zone ${soundRef.zoneId}`);
+            }
+        });
+    } else {
+        // When unmuting: resume all previously active sounds
+        if (this.globalApproachSound && this.globalApproachSound.paused && this.isApproachSoundActive) {
+            this.globalApproachSound.play().catch((err) => {
+                console.warn('Could not resume global approach sound after unmute:', err);
+            });
+            console.log('Unmuted: resumed global approach sound');
+        }
+        
+        // NEW: Resume all active collision sounds
+        this.activeCollisionSounds.forEach(soundRef => {
+            if (soundRef.audio && soundRef.audio.paused && !soundRef.audio.ended) {
+                soundRef.audio.play().catch((err) => {
+                    console.warn(`Could not resume collision sound for zone ${soundRef.zoneId}:`, err);
+                });
+                console.log(`Unmuted: resumed collision sound for zone ${soundRef.zoneId}`);
+            }
+        });
+    }
+}
+}
+
+const soundManager = new SoundManager();
+
+// Sound toggle button functionality
+const soundToggleBtn = document.getElementById('soundToggle');
+
+soundToggleBtn.addEventListener('click', () => {
+    soundManager.toggleMute();
+    
+    if (soundManager.muted) {
+        soundToggleBtn.classList.add('muted');
+        soundToggleBtn.setAttribute('aria-label', 'Unmute sound');
+        
+        Object.keys(soundManager.sounds).forEach(key => {
+            const audio = soundManager.sounds[key];
+            if (audio && !audio.paused) {
+                audio.pause();
+            }
+        });
+    } else {
+        soundToggleBtn.classList.remove('muted');
+        soundToggleBtn.setAttribute('aria-label', 'Mute sound');
+    }
+});
+
+// Info card functionality
+const infoCardOverlay = document.getElementById('infoCardOverlay');
+const infoPage1 = document.getElementById('infoPage1');
+const infoPage2 = document.getElementById('infoPage2');
+const nextBtn = document.getElementById('nextBtn');
+const backBtn = document.getElementById('backBtn');
+const backBtn2 = document.getElementById('backBtn2');
+const closeBtn = document.getElementById('closeBtn');
+
+let currentPage = 1;
+
+window.addEventListener('load', () => {
+    infoCardOverlay.style.display = 'flex';
+});
+
+nextBtn.addEventListener('click', () => {
+    if (currentPage === 1) {
+        infoPage1.style.display = 'none';
+        infoPage2.style.display = 'block';
+        currentPage = 2;
+        document.querySelector('.info-card-container').scrollTop = 0;
+    }
+});
+
+backBtn2.addEventListener('click', () => {
+    if (currentPage === 2) {
+        infoPage2.style.display = 'none';
+        infoPage1.style.display = 'block';
+        currentPage = 1;
+        document.querySelector('.info-card-container').scrollTop = 0;
+    }
+});
+
+closeBtn.addEventListener('click', () => {
+    infoCardOverlay.classList.add('hidden');
+    setTimeout(() => {
+        infoCardOverlay.style.display = 'none';
+    }, 300);
+});
+
+// Legend panel toggle functionality
+const legendToggle = document.getElementById('legendToggle');
+const legendPanel = document.getElementById('legendPanel');
+let legendOpen = false;
+
+legendToggle.addEventListener('click', (e) => {
+    e.stopPropagation();
+    legendOpen = !legendOpen;
+    
+    if (legendOpen) {
+        legendPanel.classList.add('active');
+        legendToggle.setAttribute('aria-expanded', 'true');
+    } else {
+        legendPanel.classList.remove('active');
+        legendToggle.setAttribute('aria-expanded', 'false');
+    }
+});
+
+document.addEventListener('click', (e) => {
+    if (legendOpen && !legendPanel.contains(e.target) && e.target !== legendToggle) {
+        legendPanel.classList.remove('active');
+        legendToggle.setAttribute('aria-expanded', 'false');
+        legendOpen = false;
+    }
+});
+
+legendPanel.addEventListener('click', (e) => {
+    e.stopPropagation();
+});
+
+// Learn More Panel Toggle
+const learnMoreToggle = document.getElementById('learnMoreToggle');
+const learnMorePanel = document.getElementById('learnMorePanel');
+let learnMoreOpen = false;
+
+learnMoreToggle.addEventListener('click', (e) => {
+    e.stopPropagation();
+    learnMoreOpen = !learnMoreOpen;
+    if (learnMoreOpen) {
+        learnMorePanel.classList.add('active');
+        learnMoreToggle.setAttribute('aria-expanded', 'true');
+    } else {
+        learnMorePanel.classList.remove('active');
+        learnMoreToggle.setAttribute('aria-expanded', 'false');
+    }
+});
+
+document.addEventListener('click', (e) => {
+    if (learnMoreOpen && !learnMorePanel.contains(e.target) && e.target !== learnMoreToggle) {
+        learnMorePanel.classList.remove('active');
+        learnMoreToggle.setAttribute('aria-expanded', 'false');
+        learnMoreOpen = false;
+    }
+});
+
+learnMorePanel.addEventListener('click', (e) => e.stopPropagation());
+
+// Pagination
+const lmNextBtn = document.getElementById('lmNextBtn');
+const lmBackBtn = document.getElementById('lmBackBtn');
+const learnMorePage1 = document.getElementById('learnMorePage1');
+const learnMorePage2 = document.getElementById('learnMorePage2');
+
+lmNextBtn.addEventListener('click', () => {
+    learnMorePage1.style.display = 'none';
+    learnMorePage2.style.display = 'block';
+});
+
+lmBackBtn.addEventListener('click', () => {
+    learnMorePage2.style.display = 'none';
+    learnMorePage1.style.display = 'block';
+});
+
+soundToggleBtn.setAttribute('aria-label', 'Mute sound');
+
+// --------------------------
+// Starfield
+// --------------------------
+const starsContainer = document.getElementById('stars');
+for (let i = 0; i < 200; i++) {
+    const star = document.createElement('div');
+    star.className = 'star';
+    star.style.left = Math.random() * 100 + '%';
+    star.style.top = Math.random() * 100 + '%';
+    star.style.animationDelay = Math.random() * 3 + 's';
+    starsContainer.appendChild(star);
+}
+
+// --------------------------
+// Scene / Camera / Renderer
+// --------------------------
+const scene = new THREE.Scene();
+const canvas = document.getElementById('canvas');
+const sceneContainer = document.getElementById('sceneContainer');
+
+const camera = new THREE.PerspectiveCamera(75, 1, 0.01, 1000);
+camera.position.set(0, 0, 70);
+camera.lookAt(0, 0, 0);
+
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+renderer.setPixelRatio(window.devicePixelRatio || 1);
+renderer.setClearColor(0x000000, 0);
+
+function resizeRenderer() {
+    const rect = sceneContainer.getBoundingClientRect();
+    const width = Math.max(1, Math.floor(rect.width));
+    const height = Math.max(1, Math.floor(rect.height));
+    camera.aspect = width / height;
+    camera.updateProjectionMatrix();
+    renderer.setSize(width, height, true);
+}
+window.addEventListener('resize', resizeRenderer);
+resizeRenderer();
+
+// --------------------------
+// Lighting
+// --------------------------
+const ambientLight = new THREE.AmbientLight(0x404040, 2);
+scene.add(ambientLight);
+const pointLight1 = new THREE.PointLight(0x00ffff, 2, 200);
+pointLight1.position.set(10, 10, 10);
+scene.add(pointLight1);
+const pointLight2 = new THREE.PointLight(0xff00ff, 1.5, 200);
+pointLight2.position.set(-10, -10, -10);
+scene.add(pointLight2);
+
+// --------------------------
+// Shared geometries & materials
+// --------------------------
+const protonGeometry = new THREE.SphereGeometry(0.3, 12, 12);
+const protonMaterial = new THREE.MeshPhongMaterial({
+    color: 0xff3333,
+    emissive: 0x110000,
+    emissiveIntensity: 0.15,
+    shininess: 80
+});
+
+const neutronGeometry = new THREE.SphereGeometry(0.3, 12, 12);
+const neutronMaterial = new THREE.MeshPhongMaterial({
+    color: 0x3333ff,
+    emissive: 0x000022,
+    emissiveIntensity: 0.12,
+    shininess: 80
+});
+
+const freeNeutronGeometry = new THREE.SphereGeometry(0.5, 12, 12);
+const freeNeutronMaterial = new THREE.MeshPhongMaterial({
+    color: 0x3366ff,
+    emissive: 0x112244,
+    emissiveIntensity: 0.08,
+    shininess: 60
+});
+
+const electronGeometry = new THREE.SphereGeometry(0.2, 12, 12);
+const electronMaterial = new THREE.MeshPhongMaterial({
+    color: 0x00ff00,
+    emissive: 0x002200,
+    emissiveIntensity: 0.25,
+    shininess: 80
+});
+
+// Electron shells config
+const shellsConfig = [
+    { count: 2, radius: 8 },
+    { count: 8, radius: 10 },
+    { count: 18, radius: 12 },
+    { count: 32, radius: 14 },
+    { count: 21, radius: 16 },
+    { count: 9, radius: 18 },
+    { count: 2, radius: 20 }
+];
+
+// --------------------------
+// SIMULATION STATE
+// --------------------------
+const MAX_ZONES = 3;
+const MAX_NUCLEI = 3;
+const MAX_FREE_NEUTRONS = 3;
+
+// Zone positions (non-overlapping corners)
+const ZONE_POSITIONS = [
+    new THREE.Vector3(-18, 12, 0),   // Top left
+    new THREE.Vector3(18, 12, 0),    // Top right
+    new THREE.Vector3(0, -15, 0)     // Bottom center
+];
+
+const ZONE_SIZE = { width: 20, height: 20, depth: 20 };
+
+// Arrays
+const reactionZones = []; // { id, position, nucleusId, neutronId, outline, movingNeutron, collisionEffect, fissionAnimation, fissionEffect, fissionFragments, pendingCollision, inInternalView }
+const uraniumNuclei = []; // { group, electrons: [], orbitLines: [], id, zoneId }
+const freeNeutrons = []; // { mesh, id, zoneId }
+const internalNucleusGroups = []; // { nucleusId, group, protons: [], neutrons: [] }
+
+// Constants
+const URANIUM_PROTONS = 92;
+const URANIUM_NEUTRONS = 143;
+const URANIUM_ELECTRONS = 92;
+const NUCLEUS_RADIUS = 3;
+const FREE_NEUTRON_RADIUS = 0.5;
+const COLLISION_DISTANCE = NUCLEUS_RADIUS + FREE_NEUTRON_RADIUS + 0.05;
+
+// Drag state
+let draggedObject = null;
+let draggedType = null; // 'nucleus' or 'neutron'
+
+// Highlight parameters
+const HIGHLIGHT_EMISSIVE = 0x2b6b2b;
+const HIGHLIGHT_INTENSITY = 0.9;
+
+let prevHoveredMesh = null;
+let prevMaterialState = null;
+
+// NEW: Hint system for drag interaction
+let hintTimer = null;
+let hintActive = false;
+let hintShownOnce = false;
+const HINT_DELAY = 3500; // 3.5 seconds
+let hintGlowSprites = []; // Store glow sprites for cleanup
+const hintMessage = document.getElementById('hintMessage');
+
+// --------------------------
+// DOM elements
+// --------------------------
+const totalProtonsEl = document.getElementById('totalProtons');
+const totalNeutronsEl = document.getElementById('totalNeutrons');
+const totalElectronsEl = document.getElementById('totalElectrons');
+
+const addZoneBtn = document.getElementById('addZoneBtn');
+const addUraniumBtn = document.getElementById('addUraniumBtn');
+const addNeutronBtn = document.getElementById('addNeutronBtn');
+
+const chkZone = document.getElementById('chkZone');
+const chkPaired = document.getElementById('chkPaired');
+
+const startBtn = document.getElementById('startBtn');
+const startOverlay = document.getElementById('startOverlay');
+
+const pauseBtn = document.getElementById('pauseBtn');
+const resumeBtn = document.getElementById('resumeBtn');
+
+const hoverTooltip = document.getElementById('hoverTooltip');
+const reactionZonesContainer = document.getElementById('reactionZones');
+
+// Internal reaction modal elements
+const internalReactionModal = document.getElementById('internalReactionModal');
+const viewInternalBtn = document.getElementById('viewInternalBtn');
+const skipInternalBtn = document.getElementById('skipInternalBtn');
+
+// Internal view modal state (does NOT block collision processing)
+let currentCollidingZone = null; // Only tracks which zone is showing internal view
+let isInternalViewActive = false; // Global flag: true when ANY internal view is showing
+const COLLISION_DETECTION_THRESHOLD = COLLISION_DISTANCE + 1.5; // Detect slightly before actual collision
+
+// Track which zones have already shown the modal to prevent duplicate triggers
+const zonesWithModalShown = new Set();
+
+// Global flag to ensure internal view modal triggers only once per simulation run
+let internalViewTriggeredOnce = false;
+
+// Internal reaction animation state
+let internalAnimationActive = false;
+let internalAnimationLevel = 0;
+let internalAnimationStartTime = 0;
+
+let isInternalView = false;
+let cameraTransitioning = false;
+let cameraTransitionProgress = 0;
+let externalCameraPosition = new THREE.Vector3();
+let externalCameraTarget = new THREE.Vector3(0, 0, 0);
+let internalCameraTarget = new THREE.Vector3();
+const CAMERA_TRANSITION_DURATION = 1200; // 1.2 seconds
+let cameraTransitionStartTime = 0;
+
+// Store complete camera state before internal view
+let savedCameraState = {
+    position: new THREE.Vector3(),
+    rotation: new THREE.Euler(),
+    quaternion: new THREE.Quaternion(),
+    zoom: 1,
+    fov: 75
+};
+
+// Store external overview state (wider view for all zones)
+let externalOverviewState = {
+    position: new THREE.Vector3(0, 0, 85),
+    rotation: new THREE.Euler(0, 0, 0),
+    quaternion: new THREE.Quaternion(),
+    fov: 75
+};
+
+// Two-stage camera pan states
+let cameraPanningToCenter = false;
+let centerPanComplete = false;
+const CENTER_PAN_DURATION = 1500; // 1.5 seconds to pan to center
+let centerPanStartTime = 0;
+let centerPanStartPosition = new THREE.Vector3();
+const centerTarget = new THREE.Vector3(0, 0, 0);
+
+const LEVEL_DURATIONS = {
+1: 2000, // Level 1: 2 seconds
+2: 2000, // Level 2: 2 seconds
+3: 2500  // Level 3: 2.5 seconds
+};
+
+// --------------------------
+// Material helper
+// --------------------------
+function cloneMaterialWithState(mat) {
+    const m = mat.clone();
+    m.userData = {
+        origEmissive: m.emissive ? m.emissive.clone() : new THREE.Color(0x000000),
+        origEmissiveIntensity: m.emissiveIntensity !== undefined ? m.emissiveIntensity : 0
+    };
+    return m;
+}
+
+// --------------------------
+// Helper: create sprite texture
+// --------------------------
+function createRadialSpriteTexture(innerColor, outerColor, size = 256) {
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = size;
+    const ctx = canvas.getContext('2d');
+
+    const grad = ctx.createRadialGradient(size/2, size/2, 0, size/2, size/2, size/2);
+    grad.addColorStop(0, innerColor);
+    grad.addColorStop(0.6, outerColor);
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0,0,size,size);
+
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.needsUpdate = true;
+    return tex;
+}
+
+// --------------------------
+// Dispose helper
+// --------------------------
+function disposeMesh(mesh) {
+    if (!mesh) return;
+    if (mesh.geometry) mesh.geometry.dispose();
+    if (mesh.material) {
+        if (Array.isArray(mesh.material)) {
+            mesh.material.forEach(m => {
+                if (m.map) m.map.dispose();
+                m.dispose && m.dispose();
+            });
+        } else {
+            if (mesh.material.map) mesh.material.map.dispose();
+            mesh.material.dispose && mesh.material.dispose();
+        }
+    }
+}
+
+// --------------------------
+// Create zone outline
+// --------------------------
+function createZoneOutline(position) {
+    const geometry = new THREE.EdgesGeometry(new THREE.BoxGeometry(ZONE_SIZE.width, ZONE_SIZE.height, ZONE_SIZE.depth));
+    const material = new THREE.LineDashedMaterial({
+        color: 0x66C18E,
+        linewidth: 2,
+        scale: 1,
+        dashSize: 0.8,
+        gapSize: 0.4,
+        opacity: 0.8,
+        transparent: true
+    });
+    
+    const outline = new THREE.LineSegments(geometry, material);
+    outline.computeLineDistances();
+    outline.position.copy(position);
+    outline.userData.isZoneOutline = true;
+    
+    return outline;
+}
+
+// --------------------------
+// Add reaction zone
+// --------------------------
+function addReactionZone() {
+    if (reactionZones.length >= MAX_ZONES) return;
+
+    const zoneId = reactionZones.length + 1;
+    const position = ZONE_POSITIONS[reactionZones.length].clone();
+    
+    const outline = createZoneOutline(position);
+    scene.add(outline);
+    
+    reactionZones.push({
+        id: zoneId,
+        position: position,
+        nucleusId: null,
+        neutronId: null,
+        outline: outline,
+        movingNeutron: null,
+        collisionEffect: null,
+        fissionAnimation: null,
+        fissionEffect: null,
+        fissionFragments: []
+    });
+
+    updateZoneButton();
+    updateReactionZonesUI();
+    updateChecklistAndStartState();
+    
+    // NEW: Start hint timer if conditions met
+    startHintTimerIfNeeded();
+}
+// --------------------------
+// Create internal nucleus group for close-up view
+// --------------------------
+function createInternalNucleusGroup(nucleusId, nucleusPosition) {
+const internalGroup = new THREE.Group();
+internalGroup.name = `internal-nucleus-${nucleusId}`;
+internalGroup.position.copy(nucleusPosition);
+internalGroup.visible = false; // Hidden by default
+scene.add(internalGroup);
+
+const protons = [];
+const neutrons = [];
+
+// Internal view uses conceptual representation: ~20-40 nucleons total
+const INTERNAL_PROTON_COUNT = 15;
+const INTERNAL_NEUTRON_COUNT = 20;
+const totalNucleons = INTERNAL_PROTON_COUNT + INTERNAL_NEUTRON_COUNT;
+
+// Slightly larger spheres for internal view visibility
+const internalProtonGeometry = new THREE.SphereGeometry(0.5, 16, 16);
+const internalNeutronGeometry = new THREE.SphereGeometry(0.5, 16, 16);
+
+const internalProtonMaterial = new THREE.MeshPhongMaterial({
+    color: 0xff3333,
+    emissive: 0x110000,
+    emissiveIntensity: 0.15,
+    shininess: 80
+});
+
+const internalNeutronMaterial = new THREE.MeshPhongMaterial({
+    color: 0x3333ff,
+    emissive: 0x000022,
+    emissiveIntensity: 0.12,
+    shininess: 80
+});
+
+// Random chaotic placement within bounded volume
+const boundRadius = 3.5; // Confined space for crowded feel
+
+for (let i = 0; i < totalNucleons; i++) {
+    const isProton = i < INTERNAL_PROTON_COUNT;
+    
+    // Random position within sphere, biased toward center for density
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+    const r = Math.pow(Math.random(), 0.7) * boundRadius; // Bias toward center
+    
+    const x = r * Math.sin(phi) * Math.cos(theta);
+    const y = r * Math.sin(phi) * Math.sin(theta);
+    const z = r * Math.cos(phi);
+    
+    const geometry = isProton ? internalProtonGeometry : internalNeutronGeometry;
+    const material = isProton ? internalProtonMaterial.clone() : internalNeutronMaterial.clone();
+    
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.position.set(x, y, z);
+    
+    // Store base position and color for animations
+    mesh.userData = {
+        type: isProton ? 'internal-proton' : 'internal-neutron',
+        basePosition: new THREE.Vector3(x, y, z),
+        baseColor: isProton ? new THREE.Color(0xff3333) : new THREE.Color(0x3333ff),
+        baseEmissive: isProton ? new THREE.Color(0x110000) : new THREE.Color(0x000022),
+        baseEmissiveIntensity: isProton ? 0.15 : 0.12,
+        nucleusId: nucleusId
+    };
+    
+    internalGroup.add(mesh);
+    
+    if (isProton) {
+        protons.push(mesh);
+    } else {
+        neutrons.push(mesh);
+    }
+}
+
+internalNucleusGroups.push({
+    nucleusId: nucleusId,
+    group: internalGroup,
+    protons: protons,
+    neutrons: neutrons,
+    originalPosition: nucleusPosition.clone()
+});
+
+console.log(`Created internal nucleus group for nucleus ${nucleusId} with ${protons.length} protons and ${neutrons.length} neutrons (conceptual representation)`);
+
+return internalGroup;
+}
+// --------------------------
+// Create internal view background
+// --------------------------
+function createInternalBackground() {
+const bgGeometry = new THREE.SphereGeometry(100, 32, 32);
+const bgMaterial = new THREE.MeshBasicMaterial({
+    color: 0x0a0a1a,
+    side: THREE.BackSide,
+    transparent: true,
+    opacity: 0
+});
+
+const bgMesh = new THREE.Mesh(bgGeometry, bgMaterial);
+bgMesh.name = 'internal-background';
+bgMesh.visible = false;
+scene.add(bgMesh);
+
+return bgMesh;
+}
+
+// Create the internal background once
+const internalBackground = createInternalBackground();
+
+// --------------------------
+// Create uranium nucleus
+// --------------------------
+function createUraniumNucleus() {
+    if (uraniumNuclei.length >= MAX_NUCLEI) return;
+
+    const nucleusId = uraniumNuclei.length + 1;
+    
+    // Start position: left side, stacked vertically
+    const startX = -25;
+    const startY = 10 - (uraniumNuclei.length * 10);
+    const position = new THREE.Vector3(startX, startY, 0);
+
+    const uraniumGroup = new THREE.Group();
+    uraniumGroup.name = `uranium-nucleus-${nucleusId}`;
+    uraniumGroup.position.copy(position);
+    uraniumGroup.userData.isDraggable = true;
+    uraniumGroup.userData.nucleusId = nucleusId;
+    scene.add(uraniumGroup);
+
+    const nucleons = URANIUM_PROTONS + URANIUM_NEUTRONS;
+
+    for (let i = 0; i < nucleons; i++) {
+        const phi = Math.acos(-1 + (2 * i) / nucleons);
+        const theta = Math.sqrt(nucleons * Math.PI) * phi;
+
+        const x = NUCLEUS_RADIUS * Math.cos(theta) * Math.sin(phi);
+        const y = NUCLEUS_RADIUS * Math.sin(theta) * Math.sin(phi);
+        const z = NUCLEUS_RADIUS * Math.cos(phi);
+
+        const isProton = i < URANIUM_PROTONS;
+        const baseMat = isProton ? protonMaterial : neutronMaterial;
+        const mat = cloneMaterialWithState(baseMat);
+
+        const mesh = new THREE.Mesh(isProton ? protonGeometry : neutronGeometry, mat);
+        mesh.position.set(x, y, z);
+        mesh.userData = {
+            type: isProton ? 'proton' : 'neutron',
+            info: isProton ? 'charge: +1, mass ≈ 1 u' : 'charge: 0, mass ≈ 1 u',
+            nucleusId: nucleusId
+        };
+        uraniumGroup.add(mesh);
+    }
+
+    const electrons = [];
+    const orbitLines = [];
+
+    shellsConfig.forEach((shell, shellIndex) => {
+        for (let i = 0; i < shell.count; i++) {
+            const electronMat = cloneMaterialWithState(electronMaterial);
+            const electronMesh = new THREE.Mesh(electronGeometry, electronMat);
+            const angle = (i / shell.count) * Math.PI * 2;
+            const tilt = (shellIndex * 0.3) - 0.9;
+
+            electronMesh.userData = {
+                type: 'electron',
+                info: 'charge: −1, very small mass',
+                nucleusId: nucleusId
+            };
+
+            electrons.push({
+                mesh: electronMesh,
+                radius: shell.radius,
+                angle: angle,
+                speed: 0.01 + (shellIndex * 0.002),
+                tilt: tilt,
+                nucleusId: nucleusId
+            });
+
+            scene.add(electronMesh);
+        }
+    });
+
+    shellsConfig.forEach((shell, shellIndex) => {
+        const points = [];
+        const tilt = (shellIndex * 0.3) - 0.9;
+        for (let i = 0; i <= 64; i++) {
+            const angle = (i / 64) * Math.PI * 2;
+            points.push(new THREE.Vector3(
+                Math.cos(angle) * shell.radius,
+                Math.sin(angle) * shell.radius * Math.cos(tilt),
+                Math.sin(angle) * shell.radius * Math.sin(tilt)
+            ));
+        }
+        const orbitGeometry = new THREE.BufferGeometry().setFromPoints(points);
+        const orbitMaterial = new THREE.LineBasicMaterial({
+            color: 0x00ffff,
+            transparent: true,
+            opacity: 0.1
+        });
+        const orbit = new THREE.Line(orbitGeometry, orbitMaterial);
+        orbit.position.copy(position);
+        scene.add(orbit);
+        orbitLines.push(orbit);
+    });
+
+    uraniumNuclei.push({
+        group: uraniumGroup,
+        electrons: electrons,
+        orbitLines: orbitLines,
+        id: nucleusId,
+        zoneId: null
+    });
+    // Create internal nucleus group for this nucleus
+    createInternalNucleusGroup(nucleusId, position);
+
+    updateNucleusButton();
+    updateGlobalTotals();
+    updateChecklistAndStartState();
+    
+    // NEW: Start hint timer if conditions met
+    startHintTimerIfNeeded();
+}
+
+// --------------------------
+// Add free neutron
+// --------------------------
+function addFreeNeutron() {
+    if (freeNeutrons.length >= MAX_FREE_NEUTRONS) return;
+
+    const neutronId = freeNeutrons.length + 1;
+    const meshMat = cloneMaterialWithState(freeNeutronMaterial);
+    const mesh = new THREE.Mesh(freeNeutronGeometry, meshMat);
+    
+    // Start position: right side, stacked vertically
+    const startX = 25;
+    const startY = 10 - (freeNeutrons.length * 6);
+    
+    mesh.position.set(startX, startY, 0);
+    mesh.name = `free-neutron-${neutronId}`;
+    mesh.userData = {
+        type: 'free-neutron',
+        info: 'Uncharged particle that can cause fission upon absorption.',
+        neutronId: neutronId,
+        isDraggable: true
+    };
+    scene.add(mesh);
+    
+    freeNeutrons.push({ mesh: mesh, id: neutronId, zoneId: null });
+
+    updateNeutronButton();
+    updateGlobalTotals();
+    updateChecklistAndStartState();
+    
+    // NEW: Start hint timer if conditions met
+    startHintTimerIfNeeded();
+}
+
+// --------------------------
+// Update buttons
+// --------------------------
+function updateZoneButton() {
+    addZoneBtn.textContent = `Add Reaction Zone (${reactionZones.length}/${MAX_ZONES})`;
+    addZoneBtn.disabled = reactionZones.length >= MAX_ZONES;
+}
+
+function updateNucleusButton() {
+    addUraniumBtn.textContent = `Add Uranium (${uraniumNuclei.length}/${MAX_NUCLEI})`;
+    addUraniumBtn.disabled = uraniumNuclei.length >= MAX_NUCLEI;
+}
+
+function updateNeutronButton() {
+    addNeutronBtn.textContent = `Add Neutron (${freeNeutrons.length}/${MAX_FREE_NEUTRONS})`;
+    addNeutronBtn.disabled = freeNeutrons.length >= MAX_FREE_NEUTRONS;
+}
+
+// --------------------------
+// Update global totals
+// --------------------------
+function updateGlobalTotals() {
+    const totalProtons = uraniumNuclei.length * URANIUM_PROTONS;
+    const totalNeutrons = uraniumNuclei.length * URANIUM_NEUTRONS + freeNeutrons.length;
+    const totalElectrons = uraniumNuclei.length * URANIUM_ELECTRONS;
+    
+    totalProtonsEl.textContent = totalProtons;
+    totalNeutronsEl.textContent = totalNeutrons;
+    totalElectronsEl.textContent = totalElectrons;
+}
+
+// --------------------------
+// Update reaction zones UI
+// --------------------------
+function updateReactionZonesUI() {
+    reactionZonesContainer.innerHTML = '';
+    
+    if (reactionZones.length === 0) {
+        reactionZonesContainer.innerHTML = '<p style="font-size: 11px; color: #888; font-style: italic; text-align: center;">No reaction zones created yet</p>';
+        return;
+    }
+    
+    reactionZones.forEach((zone, idx) => {
+        const zoneDiv = document.createElement('div');
+        zoneDiv.className = 'zone-item';
+        
+        const nucleus = uraniumNuclei.find(n => n.id === zone.nucleusId);
+        const neutron = freeNeutrons.find(n => n.id === zone.neutronId);
+        
+        const nucleusText = nucleus ? `Nucleus ${nucleus.id}` : 'Empty';
+        const neutronText = neutron ? `Neutron ${neutron.id}` : 'Empty';
+        
+        let statusText = '';
+        let statusClass = '';
+        
+        if (zone.movingNeutron && zone.movingNeutron.arrived) {
+            statusText = 'REACTING';
+            statusClass = 'reacting';
+        } else if (nucleus && neutron) {
+            statusText = 'READY';
+            statusClass = 'ready';
+        } else if (!nucleus && !neutron) {
+            statusText = 'EMPTY';
+            statusClass = 'empty';
+        } else {
+            statusText = 'INCOMPLETE';
+            statusClass = 'incomplete';
+        }
+        
+        zoneDiv.innerHTML = `
+            <div class="zone-header">Zone ${idx + 1} <span class="zone-status ${statusClass}">${statusText}</span></div>
+            <div class="zone-assignment">Nucleus: ${nucleusText}</div>
+            <div class="zone-assignment">Neutron: ${neutronText}</div>
+        `;
+        
+        reactionZonesContainer.appendChild(zoneDiv);
+    });
+}
+
+// --------------------------
+// Update checklist and start state
+// --------------------------
+function updateChecklistAndStartState() {
+    // Check if at least one zone is ready
+    const readyZones = reactionZones.filter(z => {
+        const nucleus = uraniumNuclei.find(n => n.id === z.nucleusId);
+        const neutron = freeNeutrons.find(n => n.id === z.neutronId);
+        return nucleus && neutron;
+    });
+    
+    if (readyZones.length > 0) {
+        chkZone.classList.add('checked');
+        chkZone.textContent = '✔';
+    } else {
+        chkZone.classList.remove('checked');
+        chkZone.textContent = '❌';
+    }
+
+    // Check if all particles are paired (none outside zones)
+    const unpairedNuclei = uraniumNuclei.filter(n => n.zoneId === null);
+    const unpairedNeutrons = freeNeutrons.filter(n => n.zoneId === null);
+    const allPaired = unpairedNuclei.length === 0 && unpairedNeutrons.length === 0;
+    
+    if (allPaired && (uraniumNuclei.length > 0 || freeNeutrons.length > 0)) {
+        chkPaired.classList.add('checked');
+        chkPaired.textContent = '✔';
+    } else {
+        chkPaired.classList.remove('checked');
+        chkPaired.textContent = '❌';
+    }
+
+    // Enable start ONLY if: at least one ready zone AND all particles paired
+    if (readyZones.length > 0 && allPaired) {
+        startBtn.disabled = false;
+        startOverlay.classList.remove('active');
+        startBtn.setAttribute('aria-disabled', 'false');
+    } else {
+        startBtn.disabled = true;
+        startOverlay.classList.add('active');
+        startBtn.setAttribute('aria-disabled', 'true');
+    }
+}
+
+// --------------------------
+// Check if point is in zone
+// --------------------------
+function isPointInZone(point, zone) {
+    const halfWidth = ZONE_SIZE.width / 2;
+    const halfHeight = ZONE_SIZE.height / 2;
+    const halfDepth = ZONE_SIZE.depth / 2;
+    
+    return (
+        Math.abs(point.x - zone.position.x) <= halfWidth &&
+        Math.abs(point.y - zone.position.y) <= halfHeight &&
+        Math.abs(point.z - zone.position.z) <= halfDepth
+    );
+}
+
+// --------------------------
+// Assign to zone
+// --------------------------
+function tryAssignToZone(obj, type) {
+    // Find which zone the object is in
+    let targetZone = null;
+    
+    for (const zone of reactionZones) {
+        if (isPointInZone(obj.position, zone)) {
+            targetZone = zone;
+            break;
+        }
+    }
+    
+    if (type === 'nucleus') {
+        const nucleus = uraniumNuclei.find(n => n.id === obj.userData.nucleusId);
+        if (!nucleus) return;
+        
+        // Remove from old zone if any
+        if (nucleus.zoneId !== null) {
+            const oldZone = reactionZones.find(z => z.id === nucleus.zoneId);
+            if (oldZone) oldZone.nucleusId = null;
+        }
+        
+        // Assign to new zone if found and not occupied
+        if (targetZone) {
+            if (targetZone.nucleusId === null) {
+                targetZone.nucleusId = nucleus.id;
+                nucleus.zoneId = targetZone.id;
+            } else {
+                nucleus.zoneId = null;
+            }
+        } else {
+            nucleus.zoneId = null;
+        }
+    } else if (type === 'neutron') {
+        const neutron = freeNeutrons.find(n => n.id === obj.userData.neutronId);
+        if (!neutron) return;
+        
+        // Remove from old zone if any
+        if (neutron.zoneId !== null) {
+            const oldZone = reactionZones.find(z => z.id === neutron.zoneId);
+            if (oldZone) oldZone.neutronId = null;
+        }
+        
+        // Assign to new zone if found and not occupied
+        if (targetZone) {
+            if (targetZone.neutronId === null) {
+                targetZone.neutronId = neutron.id;
+                neutron.zoneId = targetZone.id;
+            } else {
+                neutron.zoneId = null;
+            }
+        } else {
+            neutron.zoneId = null;
+        }
+    }
+    
+    updateReactionZonesUI();
+    updateChecklistAndStartState();
+}
+
+// --------------------------
+// Hint system functions
+// --------------------------
+function startHintTimerIfNeeded() {
+    // Don't start hint if already shown, active, or reaction started
+    if (hintShownOnce || hintActive || hintTimer) return;
+    
+    // Check conditions: at least 1 nucleus, 1 neutron, 1 zone, no reactions started
+    const hasNucleus = uraniumNuclei.length > 0;
+    const hasNeutron = freeNeutrons.length > 0;
+    const hasZone = reactionZones.length > 0;
+    const noReactionsStarted = !reactionZones.some(z => z.movingNeutron);
+    
+    if (hasNucleus && hasNeutron && hasZone && noReactionsStarted) {
+        clearTimeout(hintTimer);
+        hintTimer = setTimeout(() => {
+            activateHint();
+        }, HINT_DELAY);
+    }
+}
+
+function activateHint() {
+    if (hintShownOnce || hintActive) return;
+    
+    hintActive = true;
+    hintShownOnce = true;
+    
+    // Show hint message
+    if (hintMessage) {
+        hintMessage.classList.add('show');
+    }
+    
+    // Apply emissive glow + halo sprites to unassigned nuclei
+    uraniumNuclei.forEach(nucleus => {
+        if (nucleus.zoneId === null) {
+            // Enhance emissive on nucleus particles
+            nucleus.group.children.forEach(child => {
+                if (child.material && child.material.emissive) {
+                    if (!child.userData.hintOriginalEmissive) {
+                        child.userData.hintOriginalEmissive = child.material.emissive.clone();
+                        child.userData.hintOriginalIntensity = child.material.emissiveIntensity;
+                    }
+                    child.material.emissive.setHex(0x4CAF50);
+                    child.material.emissiveIntensity = 1.2;
+                    child.userData.hintGlowing = true;
+                }
+            });
+            
+            // Create halo glow sprite around nucleus
+            const nucleusPos = new THREE.Vector3();
+            nucleus.group.getWorldPosition(nucleusPos);
+            
+            const glowTexture = createRadialSpriteTexture('rgba(76, 175, 80, 0.6)', 'rgba(76, 175, 80, 0.0)', 256);
+            const glowMaterial = new THREE.SpriteMaterial({
+                map: glowTexture,
+                transparent: true,
+                opacity: 0.0,
+                depthWrite: false,
+                blending: THREE.AdditiveBlending
+            });
+            const glowSprite = new THREE.Sprite(glowMaterial);
+            glowSprite.scale.set(NUCLEUS_RADIUS * 4, NUCLEUS_RADIUS * 4, 1);
+            glowSprite.position.copy(nucleusPos);
+            glowSprite.userData.hintGlow = true;
+            glowSprite.userData.targetObject = nucleus.group;
+            glowSprite.userData.pulsePhase = 0;
+            scene.add(glowSprite);
+            hintGlowSprites.push(glowSprite);
+        }
+    });
+    
+    // Apply emissive glow + halo sprites to unassigned neutrons
+    freeNeutrons.forEach(neutron => {
+        if (neutron.zoneId === null && neutron.mesh.material) {
+            const mat = neutron.mesh.material;
+            if (mat.emissive) {
+                if (!neutron.mesh.userData.hintOriginalEmissive) {
+                    neutron.mesh.userData.hintOriginalEmissive = mat.emissive.clone();
+                    neutron.mesh.userData.hintOriginalIntensity = mat.emissiveIntensity;
+                }
+                mat.emissive.setHex(0x4CAF50);
+                mat.emissiveIntensity = 1.2;
+                neutron.mesh.userData.hintGlowing = true;
+            }
+            
+            // Create halo glow sprite around neutron
+            const glowTexture = createRadialSpriteTexture('rgba(76, 175, 80, 0.6)', 'rgba(76, 175, 80, 0.0)', 256);
+            const glowMaterial = new THREE.SpriteMaterial({
+                map: glowTexture,
+                transparent: true,
+                opacity: 0.0,
+                depthWrite: false,
+                blending: THREE.AdditiveBlending
+            });
+            const glowSprite = new THREE.Sprite(glowMaterial);
+            glowSprite.scale.set(FREE_NEUTRON_RADIUS * 6, FREE_NEUTRON_RADIUS * 6, 1);
+            glowSprite.position.copy(neutron.mesh.position);
+            glowSprite.userData.hintGlow = true;
+            glowSprite.userData.targetObject = neutron.mesh;
+            glowSprite.userData.pulsePhase = Math.PI; // Offset phase for variety
+            scene.add(glowSprite);
+            hintGlowSprites.push(glowSprite);
+        }
+    });
+    
+    console.log('Hint activated: glowing unassigned particles with halo sprites');
+}
+
+function deactivateHint() {
+    if (!hintActive) return;
+    
+    hintActive = false;
+    clearTimeout(hintTimer);
+    hintTimer = null;
+    
+    // Hide hint message
+    if (hintMessage) {
+        hintMessage.classList.remove('show');
+    }
+    
+    // Remove all glow sprites
+    hintGlowSprites.forEach(sprite => {
+        scene.remove(sprite);
+        if (sprite.material.map) sprite.material.map.dispose();
+        sprite.material.dispose();
+    });
+    hintGlowSprites = [];
+    
+    // Restore nuclei materials
+    uraniumNuclei.forEach(nucleus => {
+        nucleus.group.children.forEach(child => {
+            if (child.userData.hintGlowing && child.material && child.material.emissive) {
+                if (child.userData.hintOriginalEmissive) {
+                    child.material.emissive.copy(child.userData.hintOriginalEmissive);
+                    child.material.emissiveIntensity = child.userData.hintOriginalIntensity;
+                    delete child.userData.hintOriginalEmissive;
+                    delete child.userData.hintOriginalIntensity;
+                }
+                delete child.userData.hintGlowing;
+            }
+        });
+    });
+    
+    // Restore neutron materials
+    freeNeutrons.forEach(neutron => {
+        if (neutron.mesh.userData.hintGlowing && neutron.mesh.material) {
+            const mat = neutron.mesh.material;
+            if (mat.emissive && neutron.mesh.userData.hintOriginalEmissive) {
+                mat.emissive.copy(neutron.mesh.userData.hintOriginalEmissive);
+                mat.emissiveIntensity = neutron.mesh.userData.hintOriginalIntensity;
+                delete neutron.mesh.userData.hintOriginalEmissive;
+                delete neutron.mesh.userData.hintOriginalIntensity;
+            }
+            delete neutron.mesh.userData.hintGlowing;
+        }
+    });
+    
+    console.log('Hint deactivated: removed glow sprites and restored particle materials');
+}
+
+// --------------------------
+// Raycaster for dragging
+// --------------------------
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+
+function onPointerDown(event) {
+    if (draggedObject) return;
+    
+    // NEW: Deactivate hint on any interaction
+    deactivateHint();
+    
+    console.log('POINTER DOWN EVENT'); // Debug log
+    
+    const rect = canvas.getBoundingClientRect();
+    mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    
+    raycaster.setFromCamera(mouse, camera);
+    
+    // Check nuclei
+    const nucleiGroups = uraniumNuclei.map(n => n.group);
+    const nucleiIntersects = raycaster.intersectObjects(nucleiGroups, true);
+    
+    if (nucleiIntersects.length > 0) {
+        console.log('NUCLEUS INTERSECTED'); // Debug log
+        let obj = nucleiIntersects[0].object;
+        while (obj && !obj.userData.isDraggable) {
+            obj = obj.parent;
+        }
+        if (obj && obj.userData.isDraggable) {
+            console.log('DRAGGING NUCLEUS'); // Debug log
+            draggedObject = obj;
+            draggedType = 'nucleus';
+            document.body.classList.add('dragging');
+            activateZoneGlow(); // This should be here
+            return;
+        }
+    }
+    
+    // Check neutrons
+    const neutronMeshes = freeNeutrons.map(n => n.mesh);
+    const neutronIntersects = raycaster.intersectObjects(neutronMeshes, false);
+    
+    if (neutronIntersects.length > 0) {
+        console.log('NEUTRON INTERSECTED'); // Debug log
+        const obj = neutronIntersects[0].object;
+        if (obj.userData.isDraggable) {
+            console.log('DRAGGING NEUTRON'); // Debug log
+            draggedObject = obj;
+            draggedType = 'neutron';
+            document.body.classList.add('dragging');
+            activateZoneGlow(); // This should be here
+            return;
+        }
+    }
+}
+function onPointerMove(event) {
+    if (!draggedObject) return;
+    
+    const rect = canvas.getBoundingClientRect();
+    mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    
+    raycaster.setFromCamera(mouse, camera);
+    
+    // Project to plane at current z
+    const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), -draggedObject.position.z);
+    const intersection = new THREE.Vector3();
+    raycaster.ray.intersectPlane(plane, intersection);
+    
+    if (intersection) {
+        // Apply smoothing factor for nucleus dragging (increased sensitivity)
+        const smoothingFactor = draggedType === 'nucleus' ? 0.85 : 1.0; // Higher = more responsive
+        
+        const targetX = intersection.x;
+        const targetY = intersection.y;
+        
+        draggedObject.position.x += (targetX - draggedObject.position.x) * smoothingFactor;
+        draggedObject.position.y += (targetY - draggedObject.position.y) * smoothingFactor;
+        
+        if (draggedType === 'nucleus') {
+            const nucleus = uraniumNuclei.find(n => n.id === draggedObject.userData.nucleusId);
+            if (nucleus) {
+                nucleus.orbitLines.forEach(line => {
+                    line.position.x = draggedObject.position.x;
+                    line.position.y = draggedObject.position.y;
+                });
+            }
+        }
+    }
+}
+
+function onPointerUp(event) {
+    if (!draggedObject) return;
+    
+    console.log('POINTER UP - RELEASING DRAG'); // Debug log
+    
+    tryAssignToZone(draggedObject, draggedType);
+    
+    draggedObject = null;
+    draggedType = null;
+    document.body.classList.remove('dragging');
+    deactivateZoneGlow(); // This should be here
+}
+
+// Activate subtle glow on all reaction zones with pulsing animation
+function activateZoneGlow() {
+    console.log('ACTIVATING ZONE GLOW - Zones:', reactionZones.length);
+    reactionZones.forEach((zone, index) => {
+        console.log(`Zone ${index}:`, zone.outline ? 'Has outline' : 'NO OUTLINE');
+        if (zone.outline && zone.outline.material) {
+            console.log(`Changing zone ${index} color to yellow`);
+            // Change outline color
+            zone.outline.material.color.setHex(0xffdf00);
+            zone.outline.material.opacity = 1.0;
+            zone.outline.material.dashSize = 1.2;
+            zone.outline.material.gapSize = 0.3;
+            zone.outline.material.needsUpdate = true;
+            zone.outline.computeLineDistances();
+            
+            // Add a glowing plane behind the zone
+            if (!zone.glowPlane) {
+                console.log(`Creating glow plane for zone ${index}`);
+                const planeGeometry = new THREE.PlaneGeometry(
+                    ZONE_SIZE.width * 1.1, 
+                    ZONE_SIZE.height * 1.1
+                );
+                const planeMaterial = new THREE.MeshBasicMaterial({
+                    color: 0xffdf00,
+                    transparent: true,
+                    opacity: 0.15,
+                    side: THREE.DoubleSide,
+                    depthWrite: false
+                });
+                zone.glowPlane = new THREE.Mesh(planeGeometry, planeMaterial);
+                zone.glowPlane.position.copy(zone.position);
+                scene.add(zone.glowPlane);
+                
+                // Initialize animation properties
+                zone.glowPlane.userData.pulsePhase = Math.random() * Math.PI * 2; // Random start phase
+                zone.glowPlane.userData.isGlowing = true;
+            } else {
+                zone.glowPlane.userData.isGlowing = true;
+            }
+        }
+    });
+}
+
+// Deactivate glow on all reaction zones
+function deactivateZoneGlow() {
+    console.log('DEACTIVATING ZONE GLOW');
+    reactionZones.forEach((zone, index) => {
+        if (zone.outline && zone.outline.material) {
+            console.log(`Restoring zone ${index} to original color`);
+            // Restore outline
+            zone.outline.material.color.setHex(0x66C18E);
+            zone.outline.material.opacity = 0.8;
+            zone.outline.material.dashSize = 0.8;
+            zone.outline.material.gapSize = 0.4;
+            zone.outline.material.needsUpdate = true;
+            zone.outline.computeLineDistances();
+            
+            // Mark glow plane as inactive (will fade out)
+            if (zone.glowPlane) {
+                zone.glowPlane.userData.isGlowing = false;
+            }
+        }
+    });
+}
+
+// Update glow animation - call this in the animate loop
+function updateGlowAnimation() {
+    reactionZones.forEach(zone => {
+        if (zone.glowPlane) {
+            if (zone.glowPlane.userData.isGlowing) {
+                // Pulse the glow
+                zone.glowPlane.userData.pulsePhase += 0.05 * animationSpeed;
+                
+                // Create smooth sine wave pulse between 0.08 and 0.25
+                const minOpacity = 0.08;
+                const maxOpacity = 0.25;
+                const pulse = Math.sin(zone.glowPlane.userData.pulsePhase) * 0.5 + 0.5; // 0 to 1
+                zone.glowPlane.material.opacity = minOpacity + (pulse * (maxOpacity - minOpacity));
+                
+                // Also pulse the outline opacity slightly
+                if (zone.outline && zone.outline.material) {
+                    zone.outline.material.opacity = 0.85 + (pulse * 0.15); // 0.85 to 1.0
+                }
+            } else {
+                // Fade out when not glowing
+                zone.glowPlane.material.opacity -= 0.05 * animationSpeed;
+                
+                if (zone.glowPlane.material.opacity <= 0) {
+                    // Remove the glow plane once fully faded
+                    console.log(`Removing faded glow plane`);
+                    scene.remove(zone.glowPlane);
+                    zone.glowPlane.geometry.dispose();
+                    zone.glowPlane.material.dispose();
+                    zone.glowPlane = null;
+                }
+            }
+        }
+    });
+}
+
+// Stage label management - centralized display
+const centralStageLabel = document.getElementById('centralStageLabel');
+
+const stageMessages = {
+    approaching: 'Free Neutron Approaching',
+    collision: 'Collision Detected',
+    fission: 'Fission Reaction Taking Place',
+    energy: 'Energy Released as Heat & Radiation',
+    products: 'End Products Released'
+};
+
+// Track active stages for all zones
+const zoneStages = {
+    0: null,
+    1: null,
+    2: null
+};
+
+// NEW: Track completion state
+let completionLabelShown = false;
+const zoneCompletionStatus = {
+    0: false,
+    1: false,
+    2: false
+};
+
+function updateStageLabel(zoneIndex, stage) {
+    // Update the stage for this zone
+    zoneStages[zoneIndex] = stage;
+    
+    // Display the most advanced stage currently active
+    const activeStage = getMostAdvancedStage();
+    
+    if (activeStage) {
+        centralStageLabel.textContent = stageMessages[activeStage] || activeStage;
+        centralStageLabel.className = 'stage-label stage-' + activeStage + ' show';
+    } else {
+        centralStageLabel.classList.remove('show');
+    }
+}
+
+function clearStageLabel(zoneIndex) {
+    zoneStages[zoneIndex] = null;
+    
+    // Check if any other zones are still showing stages
+    const activeStage = getMostAdvancedStage();
+    
+    if (activeStage) {
+        centralStageLabel.textContent = stageMessages[activeStage] || activeStage;
+        centralStageLabel.className = 'stage-label stage-' + activeStage + ' show';
+    } else {
+        centralStageLabel.classList.remove('show');
+    }
+}
+
+function clearAllStageLabels() {
+    zoneStages[0] = null;
+    zoneStages[1] = null;
+    zoneStages[2] = null;
+    
+    if (centralStageLabel) {
+        centralStageLabel.classList.remove('show');
+    }
+    
+    // NEW: Reset completion tracking
+    completionLabelShown = false;
+    zoneCompletionStatus[0] = false;
+    zoneCompletionStatus[1] = false;
+    zoneCompletionStatus[2] = false;
+}
+
+// NEW: Check if all active zones have completed fission
+function checkAndShowCompletionLabel() {
+    if (completionLabelShown) return;
+    
+    // Get all zones that have reactions (either completed or in progress)
+    const activeZones = reactionZones.filter(zone => {
+        return zone.nucleusId !== null && zone.neutronId !== null;
+    });
+    
+    if (activeZones.length === 0) return;
+    
+    // Check if all active zones have completed
+    const allCompleted = activeZones.every((zone, index) => {
+        const zoneIndex = reactionZones.indexOf(zone);
+        return zoneCompletionStatus[zoneIndex] === true;
+    });
+    
+    if (allCompleted) {
+        completionLabelShown = true;
+        showCompletionLabel();
+    }
+}
+
+function showCompletionLabel() {
+    if (centralStageLabel) {
+        centralStageLabel.innerHTML = `
+            Nuclear Fission Complete
+            <span class="completion-subtitle">Click RESET to start a new nuclear fission reaction</span>
+        `;
+        centralStageLabel.className = 'stage-label stage-complete show';
+        
+        // Keep it visible longer than other labels (don't auto-hide)
+        console.log('Completion label shown');
+    }
+}
+
+// Internal stage label management
+const internalStageLabel = document.getElementById('internalStageLabel');
+
+const internalStageMessages = {
+1: 'Nucleus is Stable',
+2: 'Energy is Transferred from Neutron into Nucleus',
+3: 'Nucleus Becomes Unstable then Energy Builds Up'
+};
+
+function showInternalStageLabel(level) {
+if (internalStageLabel) {
+    internalStageLabel.textContent = internalStageMessages[level] || '';
+    internalStageLabel.style.display = 'block';
+    // Force reflow
+    internalStageLabel.offsetHeight;
+    internalStageLabel.classList.add('show');
+}
+
+// Hide external stage label
+if (centralStageLabel) {
+    centralStageLabel.classList.remove('show');
+}
+}
+
+function hideInternalStageLabel() {
+if (internalStageLabel) {
+    internalStageLabel.classList.remove('show');
+    setTimeout(() => {
+        internalStageLabel.style.display = 'none';
+    }, 300);
+}
+}
+
+// Helper to determine the most advanced stage to display
+function getMostAdvancedStage() {
+    const stageOrder = ['approaching', 'collision', 'fission', 'energy', 'products'];
+    
+    // Find the most advanced stage among all active zones
+    for (let i = stageOrder.length - 1; i >= 0; i--) {
+        const stage = stageOrder[i];
+        for (let zoneIndex in zoneStages) {
+            if (zoneStages[zoneIndex] === stage) {
+                return stage;
+            }
+        }
+    }
+    
+    return null;
+}
+canvas.addEventListener('pointerdown', onPointerDown);
+canvas.addEventListener('pointermove', onPointerMove);
+canvas.addEventListener('pointerup', onPointerUp);
+canvas.addEventListener('pointercancel', onPointerUp);
+
+// --------------------------
+// Collision visual
+// --------------------------
+function startCollisionEffect(zone) {
+    if (zone.collisionEffect) return;
+
+    const nucleus = uraniumNuclei.find(n => n.id === zone.nucleusId);
+    if (!nucleus) return;
+
+    const zoneIndex = reactionZones.indexOf(zone);
+    
+    // Stage 2: Collision detected
+    updateStageLabel(zoneIndex, 'collision');
+
+    const now = performance.now() / 1000;
+
+    const innerPulse = 'rgba(255,223,0,1.0)';
+    const outerPulse = 'rgba(255,223,0,0.20)';
+    const texPulse = createRadialSpriteTexture(innerPulse, outerPulse, 256);
+    const matPulse = new THREE.SpriteMaterial({
+        map: texPulse,
+        transparent: true,
+        opacity: 0.0,
+        depthWrite: false,
+        depthTest: true,
+        blending: THREE.AdditiveBlending,
+        toneMapped: false
+    });
+    const spritePulse = new THREE.Sprite(matPulse);
+    spritePulse.scale.set(NUCLEUS_RADIUS * 0.8, NUCLEUS_RADIUS * 0.8, 1);
+    scene.add(spritePulse);
+
+    const innerLarge = 'rgba(255,190,70,0.85)';
+    const outerLarge = 'rgba(255,190,70,0.08)';
+    const texLarge = createRadialSpriteTexture(innerLarge, outerLarge, 512);
+    const matLarge = new THREE.SpriteMaterial({
+        map: texLarge,
+        transparent: true,
+        opacity: 0.0,
+        depthWrite: false,
+        depthTest: true,
+        blending: THREE.AdditiveBlending,
+        toneMapped: false
+    });
+    const spriteLarge = new THREE.Sprite(matLarge);
+    spriteLarge.scale.set(NUCLEUS_RADIUS * 1.5, NUCLEUS_RADIUS * 1.5, 1);
+    scene.add(spriteLarge);
+
+    zone.collisionEffect = {
+        startTime: now,
+        pulses: [
+            {
+                sprite: spritePulse,
+                mat: matPulse,
+                baseScale: NUCLEUS_RADIUS * 0.8,
+                maxScale: NUCLEUS_RADIUS * 10.0,
+                opacityStart: 1.0,
+                opacityEnd: 0.0,
+                easePow: 3.0,
+                duration: 0.9 + Math.random() * 0.5
+            },
+            {
+                sprite: spriteLarge,
+                mat: matLarge,
+                baseScale: NUCLEUS_RADIUS * 1.5,
+                maxScale: NUCLEUS_RADIUS * 30.0,
+                opacityStart: 0.9,
+                opacityEnd: 0.0,
+                easePow: 2.0,
+                duration: 1.8 + Math.random() * 0.8
+            }
+        ]
+    };
+
+    setTimeout(() => {
+        // Stage 3: Fission taking place
+        updateStageLabel(zoneIndex, 'fission');
+        performFission(zone);
+    }, 650);
+}
+
+// --------------------------
+// Show Internal Reaction Modal
+// --------------------------
+function showInternalReactionModal(zone) {
+// Only trigger modal once per simulation run (first collision only)
+if (internalViewTriggeredOnce) return;
+
+// Prevent showing modal multiple times for the same zone
+const zoneId = reactionZones.indexOf(zone);
+if (zonesWithModalShown.has(zoneId)) return;
+
+// Store the zone for internal view, but don't mark collision as "detected"
+// This allows the collision to process normally in the background
+currentCollidingZone = zone;
+zonesWithModalShown.add(zoneId);
+
+// Mark that internal view has been triggered
+internalViewTriggeredOnce = true;
+
+// Pause ONLY rendering, not reaction logic
+    isPaused = true;
+
+    // Pause approach sound (before-collision) for this zone when modal appears
+    soundManager.pauseApproachSound(zone.id);
+
+    // Hide any external stage labels
+
+// Start camera pan to center
+startCameraPanToCenter();
+
+// Show the modal with animation
+internalReactionModal.classList.add('show');
+
+console.log(`Modal shown for zone ${zoneId + 1} (first collision only), camera panning to center`);
+}
+// --------------------------
+// Internal Animation Helpers
+// --------------------------
+function vibrateNucleons(nucleus, intensity) {
+if (!nucleus || !nucleus.group) return;
+
+// For INTERNAL nucleus view
+const internalNucleus = internalNucleusGroups.find(g => g.nucleusId === nucleus.id);
+if (internalNucleus && internalNucleus.group && internalNucleus.group.visible) {
+    const time = performance.now() * 0.01;
+    
+    internalNucleus.group.children.forEach((child, idx) => {
+        if (child.userData.type === 'internal-proton' || child.userData.type === 'internal-neutron') {
+            // Chaotic jitter - each particle moves independently
+            const offsetX = Math.sin(time * 2 + idx * 0.5) * intensity;
+            const offsetY = Math.cos(time * 2.3 + idx * 0.7) * intensity;
+            const offsetZ = Math.sin(time * 1.8 + idx * 0.3) * intensity;
+            
+            const base = child.userData.basePosition;
+            child.position.set(
+                base.x + offsetX,
+                base.y + offsetY,
+                base.z + offsetZ
+            );
+        }
+    });
+    return;
+}
+
+// For EXTERNAL nucleus (existing logic)
+nucleus.group.children.forEach(child => {
+    if (child.userData.type === 'proton' || child.userData.type === 'neutron') {
+        const time = performance.now() * 0.01;
+        const offsetX = Math.sin(time + child.position.x * 10) * intensity;
+        const offsetY = Math.cos(time + child.position.y * 10) * intensity;
+        const offsetZ = Math.sin(time + child.position.z * 10) * intensity;
+        
+        if (!child.userData.originalPosition) {
+            child.userData.originalPosition = child.position.clone();
+        }
+        
+        const orig = child.userData.originalPosition;
+        child.position.set(
+            orig.x + offsetX,
+            orig.y + offsetY,
+            orig.z + offsetZ
+        );
+    }
+});
+}
+
+function adjustNucleusEnergy(nucleus, level) {
+if (!nucleus || !nucleus.group) return;
+
+// For INTERNAL nucleus view - yellow → white transition only
+const internalNucleus = internalNucleusGroups.find(g => g.nucleusId === nucleus.id);
+if (internalNucleus && internalNucleus.group && internalNucleus.group.visible) {
+    // Level-based yellow→white overlay (keeps base red/blue, adds glow)
+    const glowMap = {
+        1: { overlay: 0.0, intensity: 0.15 },    // No overlay, base colors
+        2: { overlay: 0.3, intensity: 0.45 },    // Yellow tint start
+        3: { overlay: 0.7, intensity: 0.85 }     // White glow peak
+    };
+    
+    const targetGlow = glowMap[level] || glowMap[1];
+    
+    internalNucleus.group.children.forEach(child => {
+        if (child.material && child.material.emissive) {
+            const baseColor = child.userData.baseColor;
+            const baseEmissive = child.userData.baseEmissive;
+            
+            // Keep base color, add yellow→white emissive overlay
+            child.material.color.copy(baseColor);
+            
+            // Transition emissive: base → yellow → white
+            const yellowToWhite = targetGlow.overlay;
+            child.material.emissive.setRGB(
+                baseEmissive.r + (0.9 * yellowToWhite),  // Red channel increases
+                baseEmissive.g + (0.8 * yellowToWhite),  // Green channel increases
+                baseEmissive.b + (0.3 * yellowToWhite)   // Blue channel slight increase
+            );
+            child.material.emissiveIntensity = targetGlow.intensity;
+        }
+    });
+    return;
+}
+
+// For EXTERNAL nucleus (existing logic - keep unchanged)
+const intensityMap = {
+    1: 0.15,
+    2: 0.45,
+    3: 0.85
+};
+
+const colorShift = {
+    1: 0.05,
+    2: 0.15,
+    3: 0.30
+};
+
+const targetIntensity = intensityMap[level] || 0.15;
+const shift = colorShift[level] || 0.05;
+
+nucleus.group.children.forEach(child => {
+    if (child.material && child.material.emissive) {
+        const currentIntensity = child.material.emissiveIntensity || 0;
+        child.material.emissiveIntensity = currentIntensity + (targetIntensity - currentIntensity) * 0.1;
+        
+        if (child.userData.type === 'proton') {
+            const r = Math.min(1, child.material.emissive.r + shift);
+            const g = Math.max(0, child.material.emissive.g - shift * 0.5);
+            child.material.emissive.setRGB(r, g, 0);
+        } else if (child.userData.type === 'neutron') {
+            const b = Math.min(1, child.material.emissive.b + shift);
+            const r = Math.min(0.3, child.material.emissive.r + shift * 0.8);
+            child.material.emissive.setRGB(r, 0, b);
+        }
+    }
+});
+}
+
+function expandNucleus(nucleus, scale) {
+if (!nucleus || !nucleus.group) return;
+
+// For INTERNAL nucleus view - particles push outward
+const internalNucleus = internalNucleusGroups.find(g => g.nucleusId === nucleus.id);
+if (internalNucleus && internalNucleus.group && internalNucleus.group.visible) {
+    internalNucleus.group.children.forEach(child => {
+        if (child.userData.type === 'internal-proton' || child.userData.type === 'internal-neutron') {
+            const base = child.userData.basePosition;
+            // Push particles outward from center
+            const pushScale = scale;
+            child.position.set(
+                base.x * pushScale,
+                base.y * pushScale,
+                base.z * pushScale
+            );
+        }
+    });
+    return;
+}
+
+// For EXTERNAL nucleus (existing logic)
+nucleus.group.scale.set(scale, scale, scale);
+}
+
+// --------------------------
+// Camera Transition Helpers
+// --------------------------
+function easeInOutCubic(t) {
+return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
+
+function startCameraPanToCenter() {
+// Save complete camera state before any transitions
+savedCameraState.position.copy(camera.position);
+savedCameraState.rotation.copy(camera.rotation);
+savedCameraState.quaternion.copy(camera.quaternion);
+savedCameraState.zoom = camera.zoom || 1;
+savedCameraState.fov = camera.fov;
+
+// Also save/update external overview state for wider view on return
+externalOverviewState.position.set(0, 0, 85);
+externalOverviewState.rotation.set(0, 0, 0);
+externalOverviewState.quaternion.setFromEuler(externalOverviewState.rotation);
+externalOverviewState.fov = 75;
+
+console.log('Saved camera state:', {
+    position: savedCameraState.position.clone(),
+    rotation: savedCameraState.rotation.clone(),
+    fov: savedCameraState.fov
+});
+
+console.log('External overview state prepared:', {
+    position: externalOverviewState.position.clone(),
+    fov: externalOverviewState.fov
+});
+
+cameraPanningToCenter = true;
+centerPanComplete = false;
+centerPanStartTime = performance.now();
+centerPanStartPosition.copy(camera.position);
+
+console.log('Starting camera pan to center for modal view');
+}
+
+function updateCameraPanToCenter() {
+if (!cameraPanningToCenter) return;
+
+const elapsed = performance.now() - centerPanStartTime;
+const rawProgress = Math.min(1, elapsed / CENTER_PAN_DURATION);
+const progress = easeInOutCubic(rawProgress);
+
+// Pan to a closer position looking at center
+const targetPanPosition = new THREE.Vector3(0, 0, 35); // Closer to center than default
+
+camera.position.lerpVectors(centerPanStartPosition, targetPanPosition, progress);
+camera.lookAt(centerTarget);
+
+if (rawProgress >= 1) {
+    cameraPanningToCenter = false;
+    centerPanComplete = true;
+    console.log('Camera pan to center complete');
+}
+}
+
+function startCameraTransitionToInternal(nucleus) {
+if (!nucleus || !nucleus.group) return;
+
+isInternalView = true;
+cameraTransitioning = true;
+cameraTransitionProgress = 0;
+cameraTransitionStartTime = performance.now();
+
+// Use current camera position as starting point for transition
+externalCameraPosition.copy(camera.position);
+externalCameraTarget.set(0, 0, 0);
+
+// Internal nucleus is now at (0, 0, 0) - the center
+internalCameraTarget.set(0, 0, 0);
+
+console.log('Starting camera transition from center to internal nucleus view at origin');
+}
+
+function startCameraTransitionToExternal() {
+isInternalView = false;
+cameraTransitioning = true;
+cameraTransitionProgress = 0;
+cameraTransitionStartTime = performance.now();
+
+console.log('Starting camera transition back to external overview from internal view');
+}
+
+function updateCameraTransition() {
+if (!cameraTransitioning) return;
+
+const elapsed = performance.now() - cameraTransitionStartTime;
+const rawProgress = Math.min(1, elapsed / CAMERA_TRANSITION_DURATION);
+cameraTransitionProgress = easeInOutCubic(rawProgress);
+
+if (isInternalView) {
+    // Transitioning TO internal view - more zoomed out for better visibility
+    const targetPos = internalCameraTarget.clone();
+    targetPos.z += 15; // Increased from 8 to 15 units for wider view
+    
+    camera.position.lerpVectors(externalCameraPosition, targetPos, cameraTransitionProgress);
+    
+    const lookTarget = new THREE.Vector3().lerpVectors(
+        externalCameraTarget,
+        internalCameraTarget,
+        cameraTransitionProgress
+    );
+    camera.lookAt(lookTarget);
+    
+} else {
+    // Transitioning BACK to external view - use saved external overview state
+    const currentPos = camera.position.clone();
+    
+    // Interpolate position to external overview state
+    camera.position.lerpVectors(currentPos, externalOverviewState.position, cameraTransitionProgress);
+    
+    // Interpolate rotation using quaternions
+    const startQuat = camera.quaternion.clone();
+    camera.quaternion.slerpQuaternions(startQuat, externalOverviewState.quaternion, cameraTransitionProgress);
+    
+    // Interpolate FOV
+    const currentFov = camera.fov;
+    camera.fov = currentFov + (externalOverviewState.fov - currentFov) * cameraTransitionProgress;
+    camera.updateProjectionMatrix();
+}
+
+if (rawProgress >= 1) {
+    cameraTransitioning = false;
+    
+    if (!isInternalView) {
+        // Restore complete external overview state
+        camera.position.copy(externalOverviewState.position);
+        camera.quaternion.copy(externalOverviewState.quaternion);
+        camera.rotation.copy(externalOverviewState.rotation);
+        camera.fov = externalOverviewState.fov;
+        camera.updateProjectionMatrix();
+        
+        console.log('Camera fully restored to external overview state:', {
+            position: camera.position.clone(),
+            rotation: camera.rotation.clone(),
+            fov: camera.fov
+        });
+    }
+    
+    console.log('Camera transition complete');
+}
+}
+
+function hideExternalElements() {
+// Mark that we're in internal view mode (for visibility checks)
+isInternalView = true;
+
+// Hide ALL reaction zones
+reactionZones.forEach(zone => {
+    if (zone.outline) {
+        zone.outline.visible = false;
+        zone.outline.userData.hiddenByInternal = true;
+    }
+    if (zone.glowPlane) {
+        zone.glowPlane.visible = false;
+        if (zone.glowPlane.userData) zone.glowPlane.userData.hiddenByInternal = true;
+    }
+});
+
+// Hide ALL free neutrons
+freeNeutrons.forEach(n => {
+    if (n.mesh) {
+        n.mesh.visible = false;
+        n.mesh.userData.hiddenByInternal = true;
+    }
+});
+
+// Hide ALL nuclei and their electrons (including the colliding one)
+uraniumNuclei.forEach(nucleus => {
+    nucleus.group.visible = false;
+    nucleus.group.userData.hiddenByInternal = true;
+    
+    nucleus.electrons.forEach(e => {
+        if (e.mesh) {
+            e.mesh.visible = false;
+            e.mesh.userData.hiddenByInternal = true;
+        }
+    });
+    
+    nucleus.orbitLines.forEach(line => {
+        line.visible = false;
+        line.userData.hiddenByInternal = true;
+    });
+});
+
+// Hide fission fragments
+reactionZones.forEach(zone => {
+    zone.fissionFragments.forEach(f => {
+        if (f.group) {
+            f.group.visible = false;
+            f.group.userData.hiddenByInternal = true;
+        }
+    });
+});
+
+// DO NOT hide UI buttons - let users continue adding elements
+// The buttons should remain functional even during internal view
+
+const bottomControls = document.querySelector('.bottom-controls');
+if (bottomControls) bottomControls.style.display = 'none';
+
+const legendContainer = document.querySelector('.legend-container');
+if (legendContainer) legendContainer.style.display = 'none';
+
+const learnMoreContainer = document.querySelector('.learn-more-container');
+if (learnMoreContainer) learnMoreContainer.style.display = 'none';
+}
+
+function showInternalNucleus(nucleusId) {
+const internalNucleus = internalNucleusGroups.find(g => g.nucleusId === nucleusId);
+if (internalNucleus && internalNucleus.group) {
+    // Move internal nucleus to center (0, 0, 0) for isolated view
+    internalNucleus.group.position.set(0, 0, 0);
+    internalNucleus.group.visible = true;
+    
+    // Show dark background for internal view
+    if (internalBackground) {
+        internalBackground.visible = true;
+        internalBackground.material.opacity = 0.95;
+    }
+    
+    console.log(`Showing internal nucleus for nucleus ${nucleusId} at centered position`);
+}
+
+// Hide the external nucleus representation
+const externalNucleus = uraniumNuclei.find(n => n.id === nucleusId);
+if (externalNucleus && externalNucleus.group) {
+    externalNucleus.group.visible = false;
+}
+}
+
+function hideInternalNucleus(nucleusId) {
+const internalNucleus = internalNucleusGroups.find(g => g.nucleusId === nucleusId);
+if (internalNucleus && internalNucleus.group) {
+    // Hide dark background
+    if (internalBackground) {
+        internalBackground.visible = false;
+    }
+    
+    // Restore original position
+    if (internalNucleus.originalPosition) {
+        internalNucleus.group.position.copy(internalNucleus.originalPosition);
+    }
+    internalNucleus.group.visible = false;
+    console.log(`Hiding internal nucleus for nucleus ${nucleusId}, restored to original position`);
+}
+
+// Show the external nucleus representation again
+const externalNucleus = uraniumNuclei.find(n => n.id === nucleusId);
+if (externalNucleus && externalNucleus.group) {
+    externalNucleus.group.visible = true;
+}
+}
+
+function showExternalElements() {
+// Mark that we're exiting internal view mode
+isInternalView = false;
+
+// Show reaction zones (only those hidden by internal view)
+reactionZones.forEach(zone => {
+    if (zone.outline && zone.outline.userData.hiddenByInternal) {
+        zone.outline.visible = true;
+        delete zone.outline.userData.hiddenByInternal;
+    }
+    if (zone.glowPlane && zone.glowPlane.userData.hiddenByInternal) {
+        if (zone.glowPlane.userData.isGlowing) {
+            zone.glowPlane.visible = true;
+        }
+        delete zone.glowPlane.userData.hiddenByInternal;
+    }
+});
+
+// Show free neutrons (only those hidden by internal view)
+freeNeutrons.forEach(n => {
+    if (n.mesh && n.mesh.userData.hiddenByInternal) {
+        n.mesh.visible = true;
+        delete n.mesh.userData.hiddenByInternal;
+    }
+});
+
+// Show all nuclei and their electrons (only those hidden by internal view)
+uraniumNuclei.forEach(nucleus => {
+    if (nucleus.group.userData.hiddenByInternal) {
+        nucleus.group.visible = true;
+        delete nucleus.group.userData.hiddenByInternal;
+    }
+    nucleus.electrons.forEach(e => {
+        if (e.mesh && e.mesh.userData.hiddenByInternal) {
+            e.mesh.visible = true;
+            delete e.mesh.userData.hiddenByInternal;
+        }
+    });
+    nucleus.orbitLines.forEach(line => {
+        if (line.userData.hiddenByInternal) {
+            line.visible = true;
+            delete line.userData.hiddenByInternal;
+        }
+    });
+});
+
+// Show fission fragments (only those hidden by internal view)
+reactionZones.forEach(zone => {
+    zone.fissionFragments.forEach(f => {
+        if (f.group && f.group.userData.hiddenByInternal) {
+            f.group.visible = true;
+            delete f.group.userData.hiddenByInternal;
+        }
+    });
+});
+
+// UI buttons were never hidden, so no need to restore them
+
+const bottomControls = document.querySelector('.bottom-controls');
+if (bottomControls) bottomControls.style.display = '';
+
+const legendContainer = document.querySelector('.legend-container');
+if (legendContainer) legendContainer.style.display = '';
+
+const learnMoreContainer = document.querySelector('.learn-more-container');
+if (learnMoreContainer) learnMoreContainer.style.display = '';
+}
+
+// --------------------------
+// Handle View Internal Reaction
+// --------------------------
+function handleViewInternal() {
+console.log('View Internal Reaction clicked');
+
+// Hide modal with fade out
+internalReactionModal.classList.remove('show');
+
+// DO NOT reset isPaused or collision state
+// The reaction continues in background, we just show internal view overlay
+
+// Start internal animation sequence
+setTimeout(() => {
+    startInternalAnimation();
+}, 300);
+}
+
+function handleSkipInternal() {
+console.log('Skip Internal Reaction clicked');
+
+// Hide modal with fade out
+internalReactionModal.classList.remove('show');
+
+hideInternalStageLabel();
+
+// Clear global internal view flag
+    isInternalViewActive = false;
+
+    // Resume approach sound (before-collision) for this zone if collision hasn't occurred yet
+    if (currentCollidingZone && currentCollidingZone.movingNeutron && !currentCollidingZone.movingNeutron.arrived) {
+        soundManager.resumeApproachSound(currentCollidingZone.id);
+    }
+
+    // Restore camera to external overview state immediately when skipping
+camera.position.copy(externalOverviewState.position);
+camera.rotation.copy(externalOverviewState.rotation);
+camera.quaternion.copy(externalOverviewState.quaternion);
+camera.fov = externalOverviewState.fov;
+camera.updateProjectionMatrix();
+
+console.log('Camera restored to external overview state after skip');
+
+// Reset camera pan states
+cameraPanningToCenter = false;
+centerPanComplete = false;
+
+// If internal animation was active, end it properly (which restores external state)
+if (internalAnimationActive) {
+    endInternalAnimation();
+} else {
+    // If we skipped before internal animation started, just resume
+    isPaused = false;
+    
+    // Trigger collision for the zone if needed
+    if (currentCollidingZone && !currentCollidingZone.collisionEffect) {
+        currentCollidingZone.inInternalView = false;
+        console.log('Starting collision effect after skip (before internal started)');
+        startCollisionEffect(currentCollidingZone);
+    }
+    
+    // Clear zone reference
+    setTimeout(() => {
+        currentCollidingZone = null;
+    }, 100);
+}
+
+console.log('Skip complete - reaction continues normally from external overview');
+}
+
+function startInternalAnimation() {
+if (!currentCollidingZone) return;
+
+internalAnimationActive = true;
+internalAnimationLevel = 1;
+internalAnimationStartTime = performance.now();
+
+const nucleus = uraniumNuclei.find(n => n.id === currentCollidingZone.nucleusId);
+if (!nucleus) {
+    continueNormalCollision();
+    return;
+}
+
+console.log('Starting Level 1: Approach - entering isolated internal view');
+
+// Set global flag to hide ALL external reactions
+isInternalViewActive = true;
+
+// Mark this zone as being in internal view (isolates it from external updates)
+currentCollidingZone.inInternalView = true;
+
+// Freeze the external nucleus and neutron visually
+if (nucleus && nucleus.group) {
+    nucleus.group.visible = false;
+}
+
+const neutron = freeNeutrons.find(n => n.id === currentCollidingZone.neutronId);
+if (neutron && neutron.mesh) {
+    neutron.mesh.visible = false;
+}
+
+if (currentCollidingZone.movingNeutron && currentCollidingZone.movingNeutron.mesh) {
+    currentCollidingZone.movingNeutron.mesh.visible = false;
+}
+
+// Show internal stage label for Level 1
+showInternalStageLabel(1);
+
+// Hide external elements (VISUAL ONLY - do not remove from scene)
+hideExternalElements();
+
+// Show internal nucleus view
+showInternalNucleus(nucleus.id);
+
+// Start camera transition to internal view
+startCameraTransitionToInternal(nucleus);
+
+// Keep simulation paused for this specific zone
+// Other zones can continue normally
+isPaused = false;
+
+console.log('Internal view isolated - external reaction frozen for this zone');
+}
+
+// If internal animation is active, end it
+if (internalAnimationActive) {
+    endInternalAnimation();
+} else {
+    setTimeout(() => {
+        // Trigger collision effect for the zone if not already started
+        if (currentCollidingZone && !currentCollidingZone.collisionEffect) {
+            console.log('Starting collision effect for zone after skip');
+            startCollisionEffect(currentCollidingZone);
+        }
+        
+        // DO NOT reset collision state here - it will be reset naturally after fission completes
+    // collisionDetected and currentCollidingZone remain until the zone's reaction is done
+        
+        console.log('All zones will continue their reactions normally');
+    }, 300);
+}
+
+
+function endInternalAnimation() {
+if (!currentCollidingZone) return;
+
+const nucleus = uraniumNuclei.find(n => n.id === currentCollidingZone.nucleusId);
+if (nucleus) {
+    // Hide internal nucleus view
+    hideInternalNucleus(nucleus.id);
+
+    // Reset internal nucleus particles to base state
+    const internalNucleus = internalNucleusGroups.find(g => g.nucleusId === nucleus.id);
+    if (internalNucleus && internalNucleus.group) {
+        internalNucleus.group.children.forEach(child => {
+            // Reset position
+            if (child.userData.basePosition) {
+                child.position.copy(child.userData.basePosition);
+            }
+            // Reset color and glow
+            if (child.material && child.userData.baseColor) {
+                child.material.color.copy(child.userData.baseColor);
+                child.material.emissive.copy(child.userData.baseEmissive);
+                child.material.emissiveIntensity = child.userData.baseEmissiveIntensity;
+            }
+        });
+    }
+
+    // Reset EXTERNAL nucleus visual properties ONLY
+    expandNucleus(nucleus, 1.0);
+    nucleus.group.children.forEach(child => {
+        if (child.userData.originalPosition) {
+            child.position.copy(child.userData.originalPosition);
+            delete child.userData.originalPosition;
+        }
+        // Reset material properties
+        if (child.material && child.material.emissive) {
+            if (child.userData.type === 'proton') {
+                child.material.emissive.setHex(0x110000);
+                child.material.emissiveIntensity = 0.15;
+            } else if (child.userData.type === 'neutron') {
+                child.material.emissive.setHex(0x000022);
+                child.material.emissiveIntensity = 0.12;
+            }
+        }
+    });
+    
+    // Restore external nucleus visibility
+    if (nucleus.group) {
+        nucleus.group.visible = true;
+    }
+}
+
+// Restore neutron visibility
+const neutron = freeNeutrons.find(n => n.id === currentCollidingZone.neutronId);
+if (neutron && neutron.mesh) {
+    neutron.mesh.visible = true;
+}
+
+if (currentCollidingZone.movingNeutron && currentCollidingZone.movingNeutron.mesh) {
+    currentCollidingZone.movingNeutron.mesh.visible = true;
+}
+
+// Unmark zone from internal view (allows external updates to resume)
+currentCollidingZone.inInternalView = false;
+
+// Clear global flag to restore ALL external reactions
+isInternalViewActive = false;
+
+// Reset animation state
+    internalAnimationActive = false;
+    internalAnimationLevel = 0;
+
+    // Resume approach sound (before-collision) for this zone if collision hasn't occurred yet
+    if (currentCollidingZone && currentCollidingZone.movingNeutron && !currentCollidingZone.movingNeutron.arrived) {
+        soundManager.resumeApproachSound(currentCollidingZone.id);
+    }
+
+    // Hide internal stage label immediately
+hideInternalStageLabel();
+
+// Ensure label is completely hidden
+if (internalStageLabel) {
+    internalStageLabel.classList.remove('show');
+    internalStageLabel.style.display = 'none';
+}
+
+// Transition camera back to external view
+isInternalView = false;
+startCameraTransitionToExternal();
+
+// Show external elements
+setTimeout(() => {
+    showExternalElements();
+    
+    console.log('External elements shown, waiting for camera transition to complete');
+}, 300);
+
+// Wait for camera transition to fully complete before resuming reaction
+setTimeout(() => {
+    // Resume simulation AFTER camera reaches wider external position
+    isPaused = false;
+    
+    // NOW trigger the collision effect for this zone if it hasn't started
+    if (currentCollidingZone && !currentCollidingZone.collisionEffect) {
+        console.log('Resuming external collision effect after camera transition complete');
+        startCollisionEffect(currentCollidingZone);
+    }
+    
+    console.log('Camera transition complete, external reaction resuming from wider view');
+    
+    // Clear the current colliding zone reference
+    setTimeout(() => {
+        currentCollidingZone = null;
+    }, 200);
+}, CAMERA_TRANSITION_DURATION + 100); // Wait for full transition + small buffer
+}
+
+// --------------------------
+// Continue Normal Collision
+// --------------------------
+function continueNormalCollision() {
+    if (!currentCollidingZone) {
+        console.warn('No colliding zone to continue');
+        return;
+    }
+    
+    console.log('Continuing normal collision sequence for all zones');
+    
+    // Resume simulation for all zones
+    isPaused = false;
+
+    // DO NOT reset collision state here - let the collision effect start naturally
+    // The collision effect will be triggered in the animation loop
+    
+    console.log('All other zones will continue their reactions normally');
+}
+function updateCollisionEffect(zone, nowSec) {
+    if (!zone.collisionEffect) return;
+    let anyAlive = false;
+    for (let p of zone.collisionEffect.pulses) {
+        const elapsed = zone.collisionEffect?.startTime ? nowSec - zone.collisionEffect.startTime : 0;
+        const t = Math.min(1, elapsed / p.duration);
+        if (t < 1.0) anyAlive = true;
+
+        const ease = 1 - Math.pow(1 - t, p.easePow);
+        const currentScale = p.baseScale + (p.maxScale - p.baseScale) * ease;
+        const currentOpacity = (p.opacityStart * (1 - t)) + (p.opacityEnd * t);
+
+        if (p.sprite) {
+            p.sprite.scale.set(currentScale, currentScale, 1);
+            p.sprite.material.opacity = currentOpacity;
+            const nucleus = uraniumNuclei.find(n => n.id === zone.nucleusId);
+            if (nucleus && nucleus.group) {
+                const pos = new THREE.Vector3();
+                nucleus.group.getWorldPosition(pos);
+                p.sprite.position.copy(pos);
+            }
+        }
+    }
+
+    if (!anyAlive) {
+        for (let p of zone.collisionEffect.pulses) {
+            if (p.sprite) {
+                scene.remove(p.sprite);
+                if (p.mat && p.mat.map) p.mat.map.dispose();
+                if (p.mat && p.mat.dispose) p.mat.dispose();
+            }
+        }
+        zone.collisionEffect = null;
+    }
+}
+
+// --------------------------
+// Perform fission
+// --------------------------
+function performFission(zone) {
+    const nucleus = uraniumNuclei.find(n => n.id === zone.nucleusId);
+    if (!nucleus) return;
+
+    // Remove moving neutron
+    if (zone.movingNeutron && zone.movingNeutron.mesh) {
+        scene.remove(zone.movingNeutron.mesh);
+        disposeMesh(zone.movingNeutron.mesh);
+        const idx = freeNeutrons.findIndex(n => n.mesh === zone.movingNeutron.mesh);
+        if (idx >= 0) freeNeutrons.splice(idx, 1);
+        zone.movingNeutron = null;
+    }
+
+    const nucleusPos = new THREE.Vector3();
+    nucleus.group.getWorldPosition(nucleusPos);
+
+    // Remove nucleus
+    nucleus.group.children.forEach(child => {
+        disposeMesh(child);
+    });
+    scene.remove(nucleus.group);
+
+    // Remove electrons and orbit lines
+    nucleus.electrons.forEach(e => {
+        if (e.mesh) {
+            scene.remove(e.mesh);
+            disposeMesh(e.mesh);
+        }
+    });
+    nucleus.orbitLines.forEach(l => {
+        scene.remove(l);
+        l.geometry.dispose();
+        if (l.material) l.material.dispose();
+    });
+
+    // Remove from uraniumNuclei array
+    const nucleusIdx = uraniumNuclei.findIndex(n => n.id === nucleus.id);
+    if (nucleusIdx >= 0) uraniumNuclei.splice(nucleusIdx, 1);
+
+    // Create fission fragments
+    const fragA = new THREE.Group();
+    fragA.name = `fission-fragment-A-${nucleus.id}`;
+    scene.add(fragA);
+
+    const fragB = new THREE.Group();
+    fragB.name = `fission-fragment-B-${nucleus.id}`;
+    scene.add(fragB);
+
+    function createCluster(group, count, baseRadius, colorHex, emissiveHex, label, isotope) {
+        const meshes = [];
+        for (let i = 0; i < count; i++) {
+            const g = Math.random() * Math.PI * 2;
+            const r = baseRadius * (0.6 + Math.random() * 0.8);
+            const x = Math.cos(g) * r * (0.6 + Math.random() * 0.8);
+            const y = (Math.random() - 0.5) * baseRadius * 0.6;
+            const z = Math.sin(g) * r * (0.6 + Math.random() * 0.8);
+
+            const mat = new THREE.MeshPhongMaterial({
+                color: colorHex,
+                emissive: emissiveHex,
+                emissiveIntensity: 0.06 + Math.random() * 0.18,
+                shininess: 30
+            });
+            const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.28 + Math.random() * 0.12, 10, 10), mat);
+            mesh.position.set(x, y, z);
+            mesh.userData = {
+                type: 'fission-product',
+                label: label,
+                isotope: isotope,
+                info: isotope
+            };
+            group.add(mesh);
+            meshes.push(mesh);
+        }
+        return meshes;
+    }
+
+    const fragAMeshes = createCluster(fragA, 24, 2.2, 0xffcc66, 0x442200, 'Fission Product A', 'Barium-141 (Ba-141)');
+    const fragBMeshes = createCluster(fragB, 12, 1.6, 0x66ccff, 0x112244, 'Fission Product B', 'Krypton-92 (Kr-92)');
+
+    fragA.position.copy(nucleusPos);
+    fragB.position.copy(nucleusPos);
+
+    zone.fissionFragments = [
+        { group: fragA, label: 'Fission Product A', isotope: 'Barium-141 (Ba-141)', meshes: fragAMeshes },
+        { group: fragB, label: 'Fission Product B', isotope: 'Krypton-92 (Kr-92)', meshes: fragBMeshes }
+    ];
+
+    const now = performance.now() / 1000;
+    const offsetA = new THREE.Vector3(-6 - Math.random() * 2, 1 + Math.random() * 1.6, -1 + Math.random() * 2);
+    const offsetB = new THREE.Vector3(6 + Math.random() * 2, -1 - Math.random() * 1.6, 1 - Math.random() * 2);
+
+    zone.fissionAnimation = {
+        startTime: now,
+        duration: 2.6,
+        fragA: { group: fragA, from: nucleusPos.clone(), to: nucleusPos.clone().add(offsetA) },
+        fragB: { group: fragB, from: nucleusPos.clone(), to: nucleusPos.clone().add(offsetB) }
+    };
+
+    fragAMeshes.forEach(m => { if (m.material) m.material.emissiveIntensity = 0.35; });
+    fragBMeshes.forEach(m => { if (m.material) m.material.emissiveIntensity = 0.35; });
+
+    // Create fission visual effects
+    const pulses = [];
+
+    const flashTex = createRadialSpriteTexture('rgba(255,255,255,1.0)', 'rgba(255,255,255,0.25)', 512);
+    const flashMat = new THREE.SpriteMaterial({
+        map: flashTex,
+        transparent: true,
+        opacity: 0.0,
+        depthWrite: false,
+        depthTest: true,
+        blending: THREE.AdditiveBlending,
+        toneMapped: false
+    });
+    const flashSprite = new THREE.Sprite(flashMat);
+    flashSprite.scale.set(1,1,1);
+    scene.add(flashSprite);
+    pulses.push({
+        sprite: flashSprite,
+        mat: flashMat,
+        baseScale: 1.2,
+        maxScale: 40.0,
+        opacityStart: 1.0,
+        opacityEnd: 0.0,
+        easePow: 4.0,
+        duration: 0.6,
+        followGroup: null
+    });
+
+    const burstTex = createRadialSpriteTexture('rgba(255,180,60,0.95)', 'rgba(255,100,10,0.06)', 512);
+    const burstMat = new THREE.SpriteMaterial({
+        map: burstTex,
+        transparent: true,
+        opacity: 0.0,
+        depthWrite: false,
+        depthTest: true,
+        blending: THREE.AdditiveBlending,
+        toneMapped: false
+    });
+    const burstSprite = new THREE.Sprite(burstMat);
+    burstSprite.scale.set(NUCLEUS_RADIUS * 2.0, NUCLEUS_RADIUS * 2.0, 1);
+    scene.add(burstSprite);
+    pulses.push({
+        sprite: burstSprite,
+        mat: burstMat,
+        baseScale: NUCLEUS_RADIUS * 1.5,
+        maxScale: NUCLEUS_RADIUS * 18.0,
+        opacityStart: 0.9,
+        opacityEnd: 0.0,
+        easePow: 2.0,
+        duration: 1.2,
+        followGroup: null
+    });
+
+    function makeHeatSpritesFor(group, colorInner, colorOuter) {
+        const arr = [];
+        for (let i = 0; i < 3; i++) {
+            const ht = createRadialSpriteTexture(colorInner, colorOuter, 256);
+            const hm = new THREE.SpriteMaterial({
+                map: ht,
+                transparent: true,
+                opacity: 0.0,
+                depthWrite: false,
+                depthTest: true,
+                blending: THREE.NormalBlending,
+                toneMapped: false
+            });
+            const hs = new THREE.Sprite(hm);
+            hs.scale.set(1.5 + i * 0.6, 1.5 + i * 0.6, 1);
+            scene.add(hs);
+            arr.push({
+                sprite: hs,
+                mat: hm,
+                baseScale: 1.2 + i * 0.6,
+                maxScale: 6.0 + i * 2.0,
+                opacityStart: 0.65 - i * 0.18,
+                opacityEnd: 0.0,
+                easePow: 1.6 + i * 0.3,
+                duration: 1.2 + i * 0.6,
+                followGroup: group
+            });
+        }
+        return arr;
+    }
+
+    pulses.push(...makeHeatSpritesFor(fragA, 'rgba(255,140,40,0.9)', 'rgba(255,60,0,0.06)'));
+    pulses.push(...makeHeatSpritesFor(fragB, 'rgba(255,140,40,0.9)', 'rgba(255,60,0,0.06)'));
+
+    function makeSparksFor(group, count) {
+        for (let i = 0; i < count; i++) {
+            const ct = createRadialSpriteTexture('rgba(255,230,150,1.0)', 'rgba(255,180,40,0.0)', 128);
+            const cm = new THREE.SpriteMaterial({
+                map: ct,
+                transparent: true,
+                opacity: 0.0,
+                depthWrite: false,
+                depthTest: true,
+                blending: THREE.AdditiveBlending,
+                toneMapped: false
+            });
+            const cs = new THREE.Sprite(cm);
+            cs.scale.set(0.6 + Math.random() * 0.6, 0.6 + Math.random() * 0.6, 1);
+            scene.add(cs);
+            pulses.push({
+                sprite: cs,
+                mat: cm,
+                baseScale: 0.5 + Math.random() * 0.6,
+                maxScale: 2.0 + Math.random() * 2.0,
+                opacityStart: 0.9,
+                opacityEnd: 0.0,
+                easePow: 3.0,
+                duration: 0.6 + Math.random() * 0.6,
+                followGroup: group
+            });
+        }
+    }
+    makeSparksFor(fragA, 6);
+    makeSparksFor(fragB, 4);
+
+    zone.fissionEffect = {
+        startTime: now + 0.02,
+        pulses: pulses,
+        duration: 2.4
+    };
+
+    const zoneIndex = reactionZones.indexOf(zone);
+    
+    // Stage 4: Energy released - show immediately when fission begins (aligned with energy buildup)
+    updateStageLabel(zoneIndex, 'energy');
+    
+    // Stage 5: End products released - show when fragments start separating
+    setTimeout(() => {
+        updateStageLabel(zoneIndex, 'products');
+    }, 400); // Earlier timing to match fragment separation start
+    
+    // Clear "products" label quickly (fade out sooner)
+    setTimeout(() => {
+        clearStageLabel(zoneIndex);
+        
+        // NEW: Mark this zone as completed
+        zoneCompletionStatus[zoneIndex] = true;
+        
+        // Check if all zones are complete and show completion label
+        checkAndShowCompletionLabel();
+    }, 1800); // Reduced from 5000ms to fade out much sooner
+
+    updateGlobalTotals();
+    updateReactionZonesUI();
+    updateChecklistAndStartState();
+}
+
+function updateFissionEffect(zone, nowSec) {
+    if (!zone.fissionEffect) return;
+    let anyAlive = false;
+    for (let p of zone.fissionEffect.pulses) {
+        const elapsed = nowSec - zone.fissionEffect.startTime;
+        const t = Math.min(1, Math.max(0, elapsed / p.duration));
+        if (t < 1.0) anyAlive = true;
+        const ease = 1 - Math.pow(1 - t, p.easePow || 2.0);
+        const currentScale = p.baseScale + (p.maxScale - p.baseScale) * ease;
+        const currentOpacity = (p.opacityStart * (1 - ease)) + (p.opacityEnd || 0.0) * ease;
+        if (p.sprite) {
+            p.sprite.scale.set(currentScale, currentScale, 1);
+            p.sprite.material.opacity = currentOpacity;
+            if (p.followGroup) {
+                const pos = new THREE.Vector3();
+                p.followGroup.getWorldPosition(pos);
+                pos.y += Math.sin((nowSec - zone.fissionEffect.startTime) * 6 + (p.baseScale || 0)) * 0.06;
+                p.sprite.position.copy(pos);
+            } else {
+                if (zone.fissionAnimation) {
+                    const pos = zone.fissionAnimation.fragA.from.clone();
+                    p.sprite.position.copy(pos);
+                }
+            }
+            p.sprite.material.rotation = (nowSec - zone.fissionEffect.startTime) * (0.8 + (p.baseScale % 1));
+        }
+    }
+
+    if (!anyAlive) {
+        for (let p of zone.fissionEffect.pulses) {
+            if (p.sprite) {
+                scene.remove(p.sprite);
+                if (p.mat && p.mat.map) p.mat.map.dispose();
+                if (p.mat && p.mat.dispose) p.mat.dispose();
+            }
+        }
+        zone.fissionEffect = null;
+    }
+}
+
+function updateFissionAnimation(zone, nowSec) {
+    if (!zone.fissionAnimation) return;
+    const t = Math.min(1, (nowSec - zone.fissionAnimation.startTime) / zone.fissionAnimation.duration);
+    const ease = 1 - Math.pow(1 - t, 2.2);
+
+    ['fragA', 'fragB'].forEach(key => {
+        const state = zone.fissionAnimation[key];
+        if (!state || !state.group) return;
+        const pos = new THREE.Vector3().lerpVectors(state.from, state.to, ease);
+        state.group.position.copy(pos);
+        const s = 1 + 0.08 * Math.sin(ease * Math.PI * 3 + (key === 'fragA' ? 0 : 1.2));
+        state.group.scale.set(s, 0.9 + 0.1 * ease, s);
+        state.group.rotation.y = ease * 3.5 * (key === 'fragA' ? 1 : -1);
+    });
+
+    if (t >= 1) {
+        zone.fissionAnimation = null;
+    }
+}
+
+// --------------------------
+// Wire UI buttons
+// --------------------------
+addZoneBtn.addEventListener('click', addReactionZone);
+addUraniumBtn.addEventListener('click', createUraniumNucleus);
+addNeutronBtn.addEventListener('click', addFreeNeutron);
+
+// Internal reaction modal buttons
+viewInternalBtn.addEventListener('click', handleViewInternal);
+skipInternalBtn.addEventListener('click', handleSkipInternal);
+
+// Start button
+// --------------------------
+document.getElementById('startBtn').addEventListener('click', () => {
+    if (startBtn.disabled) return;
+
+    // NEW: Deactivate hint when reaction starts
+    deactivateHint();
+
+    // Start all ready zones
+    reactionZones.forEach(zone => {
+        const nucleus = uraniumNuclei.find(n => n.id === zone.nucleusId);
+        const neutron = freeNeutrons.find(n => n.id === zone.neutronId);
+        
+        if (nucleus && neutron && !zone.movingNeutron) {
+            const nucleusPos = new THREE.Vector3();
+            nucleus.group.getWorldPosition(nucleusPos);
+            
+            const mesh = neutron.mesh;
+            const initialDistance = mesh.position.distanceTo(nucleusPos) || 1.0;
+            
+            zone.movingNeutron = {
+                mesh,
+                target: nucleusPos.clone(),
+                baseSpeed: 0.05 + Math.random() * 0.02,
+                accel: 4.0 + Math.random() * 2.0,
+                initialDistance: initialDistance,
+                arrived: false,
+                startTime: performance.now() / 1000
+            };
+
+            if (mesh.material && mesh.material.emissive) {
+                mesh.material.emissive.setHex(0x88ff88);
+                mesh.material.emissiveIntensity = 0.6;
+            }
+        }
+    });
+
+    // Hide add buttons
+    addZoneBtn.style.display = 'none';
+    addUraniumBtn.style.display = 'none';
+    addNeutronBtn.style.display = 'none';
+
+    startBtn.disabled = true;
+    startOverlay.classList.add('active');
+
+    isPaused = false;
+    pauseBtn.style.display = 'inline-block';
+    resumeBtn.style.display = 'none';
+    
+    updateReactionZonesUI();
+});
+
+// --------------------------
+// Pause / Resume
+// --------------------------
+let isPaused = false;
+
+pauseBtn.addEventListener('click', () => {
+    isPaused = true;
+    pauseBtn.style.display = 'none';
+    resumeBtn.style.display = 'inline-block';
+});
+
+resumeBtn.addEventListener('click', () => {
+    isPaused = false;
+    resumeBtn.style.display = 'none';
+    pauseBtn.style.display = 'inline-block';
+});
+
+// --------------------------
+// Reset
+// --------------------------
+document.getElementById('resetBtn').addEventListener('click', () => {
+
+    // Stop all zone-specific sounds (before-collision and after-collision)
+    soundManager.stopAllZoneSounds();
+
+    clearAllStageLabels();
+    
+    // NEW: Reset hint system
+    deactivateHint();
+    hintShownOnce = false;
+    clearTimeout(hintTimer);
+    hintTimer = null;
+
+    // Reset collision detection state
+    currentCollidingZone = null;
+    zonesWithModalShown.clear();
+
+    // Reset internal view trigger flag
+    internalViewTriggeredOnce = false;
+    
+    // NEW: Hide completion label if showing
+    if (centralStageLabel) {
+        centralStageLabel.classList.remove('show', 'stage-complete');
+        centralStageLabel.innerHTML = '';
+    }
+
+    // Reset internal view trigger flag
+    internalViewTriggeredOnce = false;
+
+    // Reset internal view states
+    isInternalView = false;
+    isInternalViewActive = false; // Clear global internal view flag
+    cameraTransitioning = false;
+    cameraPanningToCenter = false;
+    centerPanComplete = false;
+    internalAnimationActive = false;
+    internalAnimationLevel = 0;
+
+    // Hide modal if showing
+    if (internalReactionModal) {
+        internalReactionModal.classList.remove('show');
+    }
+
+    // Hide internal stage label
+    hideInternalStageLabel();
+    if (internalStageLabel) {
+        internalStageLabel.classList.remove('show');
+        internalStageLabel.style.display = 'none';
+    }
+
+    // Remove all zones' effects and fragments
+    reactionZones.forEach(zone => {
+
+        if (zone.movingNeutron?.mesh) {
+            scene.remove(zone.movingNeutron.mesh);
+            disposeMesh(zone.movingNeutron.mesh);
+        }
+
+        zone.fissionFragments.forEach(f => {
+            if (f.group) {
+                f.group.children.forEach(disposeMesh);
+                scene.remove(f.group);
+            }
+        });
+
+        if (zone.collisionEffect) {
+            zone.collisionEffect.pulses.forEach(p => {
+                if (p.sprite) scene.remove(p.sprite);
+                p.mat?.map?.dispose();
+                p.mat?.dispose();
+            });
+        }
+
+        if (zone.fissionEffect) {
+            zone.fissionEffect.pulses.forEach(p => {
+                if (p.sprite) scene.remove(p.sprite);
+                p.mat?.map?.dispose();
+                p.mat?.dispose();
+            });
+        }
+
+        if (zone.outline) {
+            scene.remove(zone.outline);
+            zone.outline.geometry.dispose();
+            zone.outline.material.dispose();
+        }
+        
+        // Remove glow plane if it exists
+        if (zone.glowPlane) {
+            scene.remove(zone.glowPlane);
+            zone.glowPlane.geometry.dispose();
+            zone.glowPlane.material.dispose();
+            zone.glowPlane = null;
+        }
+    });
+
+    // CRITICAL: Clear the array completely
+    reactionZones.length = 0;
+    reactionZones.splice(0, reactionZones.length);
+    
+    // Remove all nuclei
+    uraniumNuclei.forEach(nucleus => {
+        nucleus.group.children.forEach(disposeMesh);
+        scene.remove(nucleus.group);
+
+        nucleus.electrons.forEach(e => {
+            if (e.mesh) {
+                scene.remove(e.mesh);
+                disposeMesh(e.mesh);
+            }
+        });
+
+        nucleus.orbitLines.forEach(l => {
+            scene.remove(l);
+            l.geometry.dispose();
+            l.material?.dispose();
+        });
+    });
+
+    uraniumNuclei.length = 0;
+
+    // Remove internal nucleus groups
+    internalNucleusGroups.forEach(internal => {
+        if (internal.group) {
+            internal.group.children.forEach(disposeMesh);
+            scene.remove(internal.group);
+        }
+    });
+    internalNucleusGroups.length = 0;
+
+    // Remove free neutrons
+    freeNeutrons.forEach(n => {
+        scene.remove(n.mesh);
+        disposeMesh(n.mesh);
+    });
+    freeNeutrons.length = 0;
+
+    // Restore UI
+    document.getElementById('addElements')?.style.removeProperty('display');
+
+    addZoneBtn.style.display = '';
+    addUraniumBtn.style.display = '';
+    addNeutronBtn.style.display = '';
+
+    startBtn.disabled = true;
+    startOverlay.classList.add('active');
+
+    pauseBtn.style.display = 'inline-block';
+    resumeBtn.style.display = 'none';
+
+    document.querySelector('.bottom-controls')?.style.removeProperty('display');
+    document.querySelector('.legend-container')?.style.removeProperty('display');
+    document.querySelector('.learn-more-container')?.style.removeProperty('display');
+
+    // CRITICAL: Update all UI to reflect empty state
+    updateZoneButton();
+    updateNucleusButton();
+    updateNeutronButton();
+    updateGlobalTotals();
+    updateReactionZonesUI();
+    updateChecklistAndStartState();
+
+    console.log('Reset complete - all registries cleared');
+});
+
+document.getElementById('zoomInBtn').addEventListener('click', () => {
+    camera.position.z = Math.max(20, camera.position.z - 5);
+});
+document.getElementById('zoomOutBtn').addEventListener('click', () => {
+    camera.position.z = Math.min(100, camera.position.z + 5);
+});
+
+// Speed points logic
+const speedPoints = document.querySelectorAll('.speed-point');
+let animationSpeed = 1;
+function setSpeedUI(speed) {
+    animationSpeed = speed;
+    speedPoints.forEach(pt => {
+        const s = parseFloat(pt.dataset.speed);
+        const active = Math.abs(s - speed) < 1e-6;
+        pt.classList.toggle('active', active);
+        pt.setAttribute('aria-pressed', active ? 'true' : 'false');
+    });
+}
+speedPoints.forEach(pt => {
+    pt.addEventListener('click', () => {
+        const s = parseFloat(pt.dataset.speed);
+        setSpeedUI(s);
+    });
+    pt.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            const s = parseFloat(pt.dataset.speed);
+            setSpeedUI(s);
+        }
+    });
+});
+setSpeedUI(1);
+
+
+// --------------------------
+// Hover & highlighting
+// --------------------------
+let currentHovered = null;
+const hoverThresholdPx = 36;
+
+function hideHoverTooltip() {
+    hoverTooltip.classList.remove('show');
+    hoverTooltip._hideTO && clearTimeout(hoverTooltip._hideTO);
+    restorePrevHoveredMaterial();
+    currentHovered = null;
+}
+
+function showHoverTooltipAt(x, y, html) {
+    hoverTooltip.innerHTML = html;
+    const padding = 8;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const left = Math.min(Math.max(x, padding), vw - padding);
+    const top = Math.min(Math.max(y, padding), vh - padding);
+    hoverTooltip.style.left = left + 'px';
+    hoverTooltip.style.top = top + 'px';
+    hoverTooltip.classList.add('show');
+}
+
+function worldToScreen(objWorldPosition) {
+    const vector = objWorldPosition.clone().project(camera);
+    const rect = renderer.domElement.getBoundingClientRect();
+    const x = (vector.x * 0.5 + 0.5) * rect.width + rect.left;
+    const y = (-vector.y * 0.5 + 0.5) * rect.height + rect.top;
+    return { x, y };
+}
+
+function getHoverCandidates() {
+    const candidates = [];
+    
+    uraniumNuclei.forEach(nucleus => {
+        nucleus.group.children.forEach(child => {
+            if (child && child.userData) {
+                candidates.push(child);
+            }
+        });
+        nucleus.electrons.forEach(e => {
+            if (e.mesh && e.mesh.userData) candidates.push(e.mesh);
+        });
+    });
+    
+    freeNeutrons.forEach(n => {
+        if (n.mesh && n.mesh.userData) candidates.push(n.mesh);
+    });
+    
+    reactionZones.forEach(zone => {
+        zone.fissionFragments.forEach(f => {
+            if (f.group) f.group.children.forEach(c => c && c.userData && candidates.push(c));
+        });
+    });
+    
+    return candidates;
+}
+
+function restorePrevHoveredMaterial() {
+    if (prevHoveredMesh && prevMaterialState && prevHoveredMesh.material) {
+        const mat = prevHoveredMesh.material;
+        if (mat && mat.emissive) {
+            mat.emissive.copy(prevMaterialState.emissive);
+            mat.emissiveIntensity = prevMaterialState.emissiveIntensity;
+        }
+        prevHoveredMesh = null;
+        prevMaterialState = null;
+    }
+}
+
+function highlightMesh(mesh) {
+    if (!mesh || !mesh.material || !mesh.material.emissive) return;
+    if (prevHoveredMesh === mesh) return;
+    restorePrevHoveredMaterial();
+    prevHoveredMesh = mesh;
+    const mat = mesh.material;
+    prevMaterialState = {
+        emissive: mat.emissive.clone(),
+        emissiveIntensity: mat.emissiveIntensity !== undefined ? mat.emissiveIntensity : 0
+    };
+    mat.emissive.setHex(HIGHLIGHT_EMISSIVE);
+    mat.emissiveIntensity = HIGHLIGHT_INTENSITY;
+}
+
+function handleHover(clientX, clientY) {
+    if (draggedObject) {
+        hideHoverTooltip();
+        return;
+    }
+    
+    const candidates = getHoverCandidates();
+    let best = null;
+    let bestDist = Infinity;
+    for (let i = 0; i < candidates.length; i++) {
+        const obj = candidates[i];
+        const worldPos = new THREE.Vector3();
+        obj.getWorldPosition(worldPos);
+        const screen = worldToScreen(worldPos);
+        const dx = screen.x - clientX;
+        const dy = screen.y - clientY;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < bestDist) {
+            bestDist = dist;
+            best = { obj, screen, dist };
+        }
+    }
+    if (best && best.dist <= hoverThresholdPx) {
+        if (currentHovered && currentHovered.obj === best.obj) {
+            showHoverTooltipAt(clientX, clientY - 12, currentHovered.html);
+            highlightMesh(best.obj);
+            return;
+        }
+        const meta = best.obj.userData || {};
+        const type = meta.type || 'object';
+        let title = '';
+        let body = '';
+        if (type === 'proton') {
+            title = 'Proton';
+            body = meta.info || 'Charge: +1 — constituent of nucleus';
+        } else if (type === 'neutron') {
+            title = 'Neutron';
+            body = meta.info || 'Charge: 0 — constituent of nucleus';
+        } else if (type === 'electron') {
+            title = 'Electron';
+            body = meta.info || 'Charge: -1 — orbits nucleus';
+        } else if (type === 'free-neutron') {
+            title = 'Free Neutron';
+            body = meta.info || 'Unbound neutron - can collide with nucleus';
+        } else if (type === 'fission-product') {
+            title = meta.label || 'Fission product';
+            body = meta.isotope || meta.info || '';
+        } else {
+            title = 'Particle';
+            body = meta.info || '';
+        }
+        const html = `<strong style="display:block;margin-bottom:4px">${title}</strong><span style="font-weight:500">${body}</span>`;
+        currentHovered = { obj: best.obj, html };
+        showHoverTooltipAt(clientX, clientY - 12, html);
+        highlightMesh(best.obj);
+    } else {
+        if (currentHovered) {
+            hideHoverTooltip();
+        }
+    }
+}
+
+window.addEventListener('mousemove', (ev) => {
+    handleHover(ev.clientX, ev.clientY);
+});
+
+// --------------------------
+// Nucleus rotation by mouse/trackpad (when not dragging)
+// --------------------------
+(function enableNucleusRotation() {
+    let isPointerDown = false;
+    let pointerId = null;
+    let lastX = 0;
+    let lastY = 0;
+    const sensitivity = 0.0085;
+
+    function cameraRight() {
+        const dir = new THREE.Vector3();
+        camera.getWorldDirection(dir);
+        const right = new THREE.Vector3();
+        right.crossVectors(dir, camera.up).normalize();
+        return right;
+    }
+
+    canvas.addEventListener('pointerdown', (ev) => {
+        if (draggedObject) return;
+        if (ev.button !== 0 && ev.pointerType === 'mouse') return;
+        if (uraniumNuclei.length === 0) return;
+
+        isPointerDown = true;
+        pointerId = ev.pointerId;
+        lastX = ev.clientX;
+        lastY = ev.clientY;
+    });
+
+    canvas.addEventListener('pointermove', (ev) => {
+        if (draggedObject) return;
+        if (!isPointerDown || ev.pointerId !== pointerId) return;
+        if (uraniumNuclei.length === 0) return;
+
+        const dx = ev.clientX - lastX;
+        const dy = ev.clientY - lastY;
+        lastX = ev.clientX;
+        lastY = ev.clientY;
+
+        if (Math.abs(dx) < 0.0001 && Math.abs(dy) < 0.0001) return;
+
+        const angleY = dx * sensitivity;
+        const angleX = dy * sensitivity;
+
+        const qx = new THREE.Quaternion();
+        const qy = new THREE.Quaternion();
+
+        const rightAxis = cameraRight();
+        const upAxis = camera.up.clone().normalize();
+
+        qx.setFromAxisAngle(rightAxis, angleX);
+        qy.setFromAxisAngle(upAxis, angleY);
+
+        // Apply rotation to all nuclei
+        uraniumNuclei.forEach(nucleus => {
+            nucleus.group.quaternion.premultiply(qx);
+            nucleus.group.quaternion.premultiply(qy);
+        });
+
+        ev.preventDefault();
+    });
+
+    function releasePointer(ev) {
+        if (!isPointerDown) return;
+        if (ev && ev.pointerId && ev.pointerId !== pointerId) return;
+        isPointerDown = false;
+        pointerId = null;
+    }
+    canvas.addEventListener('pointerup', releasePointer);
+    canvas.addEventListener('pointercancel', releasePointer);
+
+    canvas.addEventListener('dragstart', (e) => e.preventDefault());
+})();
+
+function createFragmentFormation(nucleus) {
+if (!nucleus || !nucleus.group) return;
+
+// For INTERNAL nucleus view - DO NOT separate particles
+const internalNucleus = internalNucleusGroups.find(g => g.nucleusId === nucleus.id);
+if (internalNucleus && internalNucleus.group && internalNucleus.group.visible) {
+    // Internal view ends before fragmentation - do nothing
+    return;
+}
+
+// For EXTERNAL nucleus (existing logic - keep unchanged)
+const children = nucleus.group.children;
+const mid = Math.floor(children.length / 2);
+
+children.forEach((child, index) => {
+    if (child.userData.type === 'proton' || child.userData.type === 'neutron') {
+        if (!child.userData.originalPosition) {
+            child.userData.originalPosition = child.position.clone();
+        }
+        
+        const offset = index < mid ? -0.3 : 0.3;
+        const orig = child.userData.originalPosition;
+        
+        child.position.x = orig.x + offset * Math.sign(orig.x || 1);
+        child.position.z = orig.z + offset * Math.sign(orig.z || 1);
+    }
+});
+}
+
+// --------------------------
+// Animation loop
+// --------------------------
+let time = 0;
+
+function animate() {
+    requestAnimationFrame(animate);
+
+    if (!isPaused) {
+    // Update camera pan to center if active (for modal)
+    if (cameraPanningToCenter) {
+        updateCameraPanToCenter();
+    }
+    
+    // Update camera transition if active (for internal view)
+    if (cameraTransitioning) {
+        updateCameraTransition();
+    }
+    time += 0.01 * animationSpeed;
+
+        // Skip ALL external reaction updates if internal view is active
+        if (!isInternalViewActive) {
+            // Update all nuclei (rotation)
+            uraniumNuclei.forEach(nucleus => {
+                nucleus.group.rotation.y += 0.001 * animationSpeed;
+            });
+
+            // Update all electrons
+            uraniumNuclei.forEach(nucleus => {
+                nucleus.electrons.forEach(e => {
+                    e.angle += e.speed * animationSpeed;
+                    const nucleusPos = nucleus.group.position;
+                    e.mesh.position.x = nucleusPos.x + Math.cos(e.angle) * e.radius;
+                    e.mesh.position.y = nucleusPos.y + Math.sin(e.angle) * e.radius * Math.cos(e.tilt);
+                    e.mesh.position.z = nucleusPos.z + Math.sin(e.angle) * e.radius * Math.sin(e.tilt);
+                });
+            });
+        }
+        } //End of !isIntenalViewActive check
+
+        //Updates glow animation
+        updateGlowAnimation();
+
+        // NEW: Update hint glow pulse animation
+        if (hintActive && hintGlowSprites.length > 0) {
+            hintGlowSprites.forEach(sprite => {
+                // Pulse animation
+                sprite.userData.pulsePhase += 0.03 * animationSpeed;
+                const pulse = Math.sin(sprite.userData.pulsePhase) * 0.5 + 0.5; // 0 to 1
+                sprite.material.opacity = 0.3 + (pulse * 0.4); // 0.3 to 0.7
+                
+                // Follow target object position
+                if (sprite.userData.targetObject) {
+                    const targetPos = new THREE.Vector3();
+                    sprite.userData.targetObject.getWorldPosition(targetPos);
+                    sprite.position.copy(targetPos);
+                }
+            });
+        }
+
+        // Update internal animation if active
+    if (internalAnimationActive && currentCollidingZone) {
+        const nucleus = uraniumNuclei.find(n => n.id === currentCollidingZone.nucleusId);
+        if (nucleus) {
+            const elapsed = performance.now() - internalAnimationStartTime;
+            const currentLevelDuration = LEVEL_DURATIONS[internalAnimationLevel];
+            
+            if (internalAnimationLevel === 1) {
+                // Level 1: Gentle vibration
+                vibrateNucleons(nucleus, 0.02);
+                adjustNucleusEnergy(nucleus, 1);
+                
+                if (elapsed >= currentLevelDuration) {
+                console.log('Starting Level 2: Energy Transfer');
+                internalAnimationLevel = 2;
+                internalAnimationStartTime = performance.now();
+                showInternalStageLabel(2);
+            }
+            } else if (internalAnimationLevel === 2) {
+                // Level 2: Intense vibration + energy buildup
+                vibrateNucleons(nucleus, 0.08);
+                adjustNucleusEnergy(nucleus, 2);
+                
+                if (elapsed >= currentLevelDuration) {
+                console.log('Starting Level 3: Instability & Energy Buildup');
+                internalAnimationLevel = 3;
+                internalAnimationStartTime = performance.now();
+                showInternalStageLabel(3);
+            }
+            } else if (internalAnimationLevel === 3) {
+                // Level 3: Expansion + fragment formation
+                const progress = Math.min(1, elapsed / currentLevelDuration);
+                const scale = 1 + (progress * 0.3);
+                
+                vibrateNucleons(nucleus, 0.12);
+                adjustNucleusEnergy(nucleus, 3);
+                expandNucleus(nucleus, scale);
+                
+                if (progress > 0.4) {
+                    createFragmentFormation(nucleus);
+                }
+                
+                if (elapsed >= currentLevelDuration) {
+                    console.log('Completing internal animation, continuing normal sequence');
+                    endInternalAnimation();
+                }
+            }
+        }
+    }
+
+        // Update all moving neutrons in all zones (skip ALL if internal view active)
+        if (!isInternalViewActive) {
+            reactionZones.forEach((zone, zoneIndex) => {
+            
+            if (zone.movingNeutron && zone.movingNeutron.mesh && !zone.movingNeutron.arrived) {
+                // Stage 1: Neutron approaching (show label when neutron starts moving)
+                if (!zone.movingNeutron.stageShown) {
+                    updateStageLabel(zoneIndex, 'approaching');
+                    zone.movingNeutron.stageShown = true;
+                    
+                    // START APPROACH SOUND (before-collision) for this zone
+                    soundManager.startApproachSound(zone.id);
+                }
+                
+                const mesh = zone.movingNeutron.mesh;
+                const target = zone.movingNeutron.target;
+                const pos = mesh.position;
+                const dir = new THREE.Vector3().subVectors(target, pos);
+                const dist = dir.length();
+
+                // Calculate normalized distance (1.0 = far, 0.0 = close)
+                const initDist = Math.max(0.0001, zone.movingNeutron.initialDistance || dist || 1.0);
+                const normalizedDist = Math.min(1, dist / initDist);
+                
+                // UPDATE APPROACH SOUND playback rate based on distance (continuous)
+                soundManager.updateApproachSoundRate(zone.id, normalizedDist);
+
+                // Detect imminent collision and show modal (only once per zone)
+                if (!zonesWithModalShown.has(zoneIndex) && 
+                    dist <= COLLISION_DETECTION_THRESHOLD && 
+                    dist > COLLISION_DISTANCE) {
+                    console.log(`Collision imminent detected for zone ${zoneIndex + 1}, distance: ${dist.toFixed(2)}`);
+                    showInternalReactionModal(zone);
+                    // Continue processing - don't block the collision
+                }
+
+                const normalizedProx = 1 - normalizedDist;
+                const accelFactor = zone.movingNeutron.accel || 3.5;
+                const dynamicSpeed = zone.movingNeutron.baseSpeed * (1 + accelFactor * Math.pow(normalizedProx, 2));
+
+                if (dist <= COLLISION_DISTANCE) {
+                    const approachDir = dir.normalize();
+                    const settlePos = approachDir.clone().multiplyScalar(COLLISION_DISTANCE - 0.02);
+                    mesh.position.copy(settlePos);
+                    zone.movingNeutron.arrived = true;
+
+                    if (mesh.material && mesh.material.emissive) {
+                        mesh.material.emissive.setHex(0x444444);
+                        mesh.material.emissiveIntensity = 0.12;
+                    }
+                    
+                    // PLAY COLLISION SOUND (after-collision) - stops approach sound automatically
+                    soundManager.playCollisionSound(zone.id);
+                    
+                    // Start collision effect ONLY if not in internal view
+                    // Internal view freezes external collision until it completes
+                    if (!zone.collisionEffect && !zone.inInternalView) {
+                        console.log(`Starting collision effect for zone ${zoneIndex + 1}`);
+                        startCollisionEffect(zone);
+                    }
+                } else {
+                    // Only move neutron if simulation is not paused
+                    if (!isPaused) {
+                        dir.normalize();
+                        const moveStep = dynamicSpeed * animationSpeed;
+                        mesh.position.add(dir.multiplyScalar(moveStep));
+                    }
+                }
+                
+            }
+        });
+
+        // Update all collision effects (skip ALL if internal view active)
+        const nowSec = performance.now() / 1000;
+        if (!isInternalViewActive) {
+            reactionZones.forEach(zone => {
+                if (zone.collisionEffect) {
+                    updateCollisionEffect(zone, nowSec);
+                }
+            });
+
+            // Update all fission animations and effects
+            reactionZones.forEach(zone => {
+                if (zone.fissionAnimation) updateFissionAnimation(zone, nowSec);
+                if (zone.fissionEffect) updateFissionEffect(zone, nowSec);
+            });
+        }
+    }
+
+    // Update camera lookAt based on current state
+if (cameraTransitioning) {
+    // Camera transition handles its own lookAt
+} else if (cameraPanningToCenter) {
+    // Pan transition handles its own lookAt
+} else if (isInternalView) {
+    // Look at centered internal nucleus
+    camera.lookAt(0, 0, 0);
+} else {
+    // Normal external view - maintain saved camera orientation
+    // Don't force lookAt here; let the saved quaternion handle it
+}
+
+renderer.render(scene, camera);
+}
+animate();
+
+// --------------------------
+// Initialize UI state
+// --------------------------
+updateZoneButton();
+updateNucleusButton();
+updateNeutronButton();
+updateGlobalTotals();
+updateReactionZonesUI();
+updateChecklistAndStartState();
+
+window.requestAnimationFrame(resizeRenderer);
+    </script>
+</body>
+</html>
